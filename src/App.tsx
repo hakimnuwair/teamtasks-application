@@ -9,106 +9,56 @@ import { AppLayout } from "./layouts/AppLayout";
 // Route guard
 import { ProtectedRoute } from "./components/common/ProtectedRoute";
 
-// Auth pages
+// Pages
 import { LoginPage } from "./pages/auth/Login";
-
-// App pages
 import { RemindersPage } from "./pages/reminders/Reminders";
+import {
+  DashboardPage,
+  GroupsPage,
+  GroupDetailPage,
+  NotificationsPage,
+  ActivityPage,
+  ProfilePage,
+  RegisterPage,
+} from "./pages";
 
-// Store
+// Stores
 import { useAuthStore } from "./store/authStore";
 import { useUIStore } from "./store/uiStore";
 
 // Config
 import { ROUTES } from "./config/routes";
 
-// ─── Placeholder pages (replace with real implementations) ───────────────────
-const DashboardPage = () => (
-  <div className="text-zinc-600 dark:text-zinc-400 text-sm">
-    Dashboard — coming soon
-  </div>
-);
-const GroupsPage = () => (
-  <div className="text-zinc-600 dark:text-zinc-400 text-sm">
-    Groups — coming soon
-  </div>
-);
-const GroupDetailPage = () => (
-  <div className="text-zinc-600 dark:text-zinc-400 text-sm">
-    Group Detail — coming soon
-  </div>
-);
-const NotificationsPage = () => (
-  <div className="text-zinc-600 dark:text-zinc-400 text-sm">
-    Notifications — coming soon
-  </div>
-);
-const ActivityPage = () => (
-  <div className="text-zinc-600 dark:text-zinc-400 text-sm">
-    Activity — coming soon
-  </div>
-);
-const ProfilePage = () => (
-  <div className="text-zinc-600 dark:text-zinc-400 text-sm">
-    Profile — coming soon
-  </div>
-);
-const RegisterPage = () => (
-  <div className="text-zinc-600 dark:text-zinc-400 text-sm">
-    Register — coming soon
-  </div>
-);
-
-// ─────────────────────────────────────────────────────────────────────────────
-
 export default function App() {
-  const { initialize, isDarkMode } = { ...useAuthStore(), ...useUIStore() };
-
-  /**
-   * On first render: try to restore the user's session.
-   * initialize() hits GET /auth/me — if the refresh token cookie is valid,
-   * the axios interceptor will silently get a new access token first.
-   * This is what prevents "logout on refresh".
-   */
   useEffect(() => {
-    // Apply dark mode class from store/OS preference
-    document.documentElement.classList.toggle("dark", isDarkMode);
+    // Apply saved dark mode preference BEFORE first paint
+    const isDark = useUIStore.getState().isDarkMode;
+    document.documentElement.classList.toggle("dark", isDark);
 
-    // Restore session
+    // Try to restore existing session
     useAuthStore.getState().initialize();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <BrowserRouter>
-      {/* Global toast notifications */}
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 3500,
-          style: {
-            background: "var(--toast-bg, #fff)",
-            color: "var(--toast-color, #18181b)",
-            border: "1px solid var(--toast-border, #e4e4e7)",
-            borderRadius: "10px",
-            fontSize: "13px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-          },
-          success: { iconTheme: { primary: "#7c3aed", secondary: "#fff" } },
-          error: { iconTheme: { primary: "#ef4444", secondary: "#fff" } },
-        }}
-      />
+      {/* 
+        Toast — glassmorphism style.
+        Colors use CSS-in-JS because react-hot-toast needs inline styles.
+        We read dark mode state directly here.
+      */}
+      <ToastProvider />
 
       <Routes>
-        {/* ── Root redirect ── */}
+        {/* Root redirect */}
         <Route path="/" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
 
-        {/* ── Auth routes (no sidebar, centered card) ── */}
+        {/* Auth pages */}
         <Route element={<AuthLayout />}>
           <Route path={ROUTES.LOGIN} element={<LoginPage />} />
           <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
         </Route>
 
-        {/* ── Protected routes (sidebar + topbar) ── */}
+        {/* Protected app pages */}
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
             <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
@@ -124,9 +74,41 @@ export default function App() {
           </Route>
         </Route>
 
-        {/* ── 404 fallback ── */}
+        {/* 404 fallback */}
         <Route path="*" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
       </Routes>
     </BrowserRouter>
+  );
+}
+
+// ── Toast provider ────────────────────────────────────────────────────────────
+// Reads dark mode to style toasts correctly
+function ToastProvider() {
+  const isDark = useUIStore((s) => s.isDarkMode);
+
+  return (
+    <Toaster
+      position="top-right"
+      toastOptions={{
+        duration: 3500,
+        style: {
+          background: isDark ? "rgba(28,35,51,0.92)" : "rgba(255,255,255,0.88)",
+          color: isDark ? "#F0F6FC" : "#0F172A",
+          border: isDark
+            ? "1px solid rgba(255,255,255,0.06)"
+            : "1px solid rgba(226,230,237,0.80)",
+          borderRadius: "12px",
+          fontSize: "13px",
+          fontFamily: "'Poppins', system-ui, sans-serif",
+          backdropFilter: "blur(12px)",
+          boxShadow: isDark
+            ? "0 8px 24px rgba(0,0,0,0.40)"
+            : "0 8px 24px rgba(15,23,42,0.10)",
+          padding: "12px 16px",
+        },
+        success: { iconTheme: { primary: "#4F46E5", secondary: "#fff" } },
+        error: { iconTheme: { primary: "#F43F5E", secondary: "#fff" } },
+      }}
+    />
   );
 }

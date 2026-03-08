@@ -34,7 +34,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       );
       // /auth/me returns the user; the interceptor may have already set a new token
       set({ user: data.data, isAuthenticated: true });
-      connectSocket(data.data.id);
+      // connectSocket(data.data.id);
     } catch {
       // Session is dead — user stays logged out, no redirect here (router handles it)
       tokenManager.clear();
@@ -51,7 +51,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     );
     tokenManager.set(data.accessToken);
     set({ user: data.user, isAuthenticated: true });
-    connectSocket(data.user.id);
+    // connectSocket(data.user.id);
   },
 
   register: async (payload: RegisterPayload) => {

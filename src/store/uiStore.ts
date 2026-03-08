@@ -24,7 +24,10 @@ export const useUIStore = create<UIState>((set) => ({
   sidebarOpen: true,
   activeModal: null,
   modalData: null,
-  isDarkMode: window.matchMedia("(prefers-color-scheme: dark)").matches,
+  isDarkMode:
+    localStorage.getItem("theme") === "dark" ||
+    (!localStorage.getItem("theme") &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches),
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -35,6 +38,7 @@ export const useUIStore = create<UIState>((set) => ({
     set((s) => {
       const next = !s.isDarkMode;
       document.documentElement.classList.toggle("dark", next);
+      localStorage.setItem("theme", next ? "dark" : "light");
       return { isDarkMode: next };
     }),
 }));
