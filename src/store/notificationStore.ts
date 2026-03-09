@@ -1,54 +1,70 @@
+/**
+ * store/notificationStore.ts — Zustand store for notifications
+ * Replaces the old placeholder version with real Notification type.
+ */
 import { create } from "zustand";
 import type { Notification } from "../types/types";
 
 interface NotificationState {
   notifications: Notification[];
   unreadCount: number;
-  isLoading: boolean;
-
-  setNotifications: (
-    notifications: Notification[],
-    unreadCount: number,
-  ) => void;
-  prependNotification: (notification: Notification) => void; // real-time push
-  markRead: (ids: string[]) => void;
+  setNotifications: (n: Notification[], unreadCount?: number) => void;
+  prependNotification: (n: Notification) => void;
+  markAsRead: (id: string) => void;
   markAllRead: () => void;
-  setLoading: (loading: boolean) => void;
+  removeNotification: (id: string) => void;
+  setUnreadCount: (c: number) => void;
 }
 
 export const useNotificationStore = create<NotificationState>((set) => ({
   notifications: [],
   unreadCount: 0,
-  isLoading: false,
 
   setNotifications: (notifications, unreadCount) =>
-    set({ notifications, unreadCount }),
+    set({
+      notifications,
+      unreadCount: unreadCount ?? notifications.filter((n) => !n.isRead).length,
+    }),
 
-  prependNotification: (notification) =>
+  prependNotification: (n) =>
     set((s) => ({
-      notifications: [notification, ...s.notifications],
-      unreadCount: s.unreadCount + 1,
+      notifications: [n, ...s.notifications],
+      unreadCount: s.unreadCount + (n.isRead ? 0 : 1),
     })),
 
-  markRead: (ids) =>
+  markAsRead: (id) =>
     set((s) => ({
       notifications: s.notifications.map((n) =>
-        ids.includes(n._id) ? { ...n, isRead: true } : n,
+        n._id === id
+          ? { ...n, isRead: true, readAt: new Date().toISOString() }
+          : n,
       ),
       unreadCount: Math.max(
         0,
         s.unreadCount -
-          ids.filter((id) =>
-            s.notifications.find((n) => n._id === id && !n.isRead),
-          ).length,
+          (s.notifications.find((n) => n._id === id && !n.isRead) ? 1 : 0),
       ),
     })),
 
   markAllRead: () =>
     set((s) => ({
-      notifications: s.notifications.map((n) => ({ ...n, isRead: true })),
+      notifications: s.notifications.map((n) => ({
+        ...n,
+        isRead: true,
+        readAt: new Date().toISOString(),
+      })),
       unreadCount: 0,
     })),
 
-  setLoading: (isLoading) => set({ isLoading }),
+  removeNotification: (id) =>
+    set((s) => ({
+      notifications: s.notifications.filter((n) => n._id !== id),
+      unreadCount: Math.max(
+        0,
+        s.unreadCount -
+          (s.notifications.find((n) => n._id === id && !n.isRead) ? 1 : 0),
+      ),
+    })),
+
+  setUnreadCount: (unreadCount) => set({ unreadCount }),
 }));

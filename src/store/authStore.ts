@@ -50,7 +50,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       payload,
     );
     tokenManager.set(data.accessToken);
-    set({ user: data.user, isAuthenticated: true });
+    set({ user: data.user, isAuthenticated: true, isInitializing: false });
     // connectSocket(data.user.id);
   },
 

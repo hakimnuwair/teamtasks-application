@@ -8,16 +8,19 @@ export interface ApiResponse<T> {
 
 export interface PaginatedResponse<T> {
   success: boolean;
-  reminders?: T[]; // backend key varies per endpoint
+  reminders?: T[];
   groups?: T[];
   logs?: T[];
   notifications?: T[];
-  pagination: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
+  data?: T[];
+  pagination: Pagination;
+}
+
+export interface Pagination {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export interface ApiError {
@@ -29,6 +32,7 @@ export interface ApiError {
 
 export interface User {
   id: string;
+  _id?: string; // some endpoints return _id
   name: string;
   email: string;
   role: "USER" | "ADMIN";
@@ -40,13 +44,11 @@ export interface LoginPayload {
   email: string;
   password: string;
 }
-
 export interface RegisterPayload {
   name: string;
   email: string;
   password: string;
 }
-
 export interface AuthResponse {
   accessToken: string;
   user: User;
@@ -54,6 +56,7 @@ export interface AuthResponse {
 
 // ─── GROUP ────────────────────────────────────────────────────────────────────
 
+// Backend only has ADMIN and MEMBER — no OWNER role
 export type GroupRole = "ADMIN" | "MEMBER";
 
 export interface GroupMember {
@@ -76,6 +79,16 @@ export interface Group {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CreateGroupPayload {
+  name: string;
+  description?: string;
+}
+
+export interface InviteMemberPayload {
+  email: string;
+  role?: GroupRole;
 }
 
 // ─── REMINDER ─────────────────────────────────────────────────────────────────
@@ -112,6 +125,7 @@ export interface CreateReminderPayload {
 
 // ─── NOTIFICATION ─────────────────────────────────────────────────────────────
 
+// Matches backend Notification.type enum exactly
 export type NotificationType =
   | "REMINDER_DUE"
   | "GROUP_INVITE"
@@ -132,6 +146,7 @@ export interface Notification {
 
 // ─── ACTIVITY LOG ─────────────────────────────────────────────────────────────
 
+// Matches backend ActivityLog.action enum exactly
 export type ActivityAction =
   | "GROUP_CREATED"
   | "GROUP_UPDATED"
@@ -151,6 +166,6 @@ export interface ActivityLog {
   groupId: { _id: string; name: string } | null;
   reminderId: { _id: string; title: string } | null;
   action: ActivityAction;
-  metadata: Record<string, unknown>;
+  metadata: Record<string, unknown>; // backend field is "metadata" not "details"
   createdAt: string;
 }

@@ -44,8 +44,15 @@ api.interceptors.response.use(
       _retry?: boolean;
     };
 
+    const url = originalRequest.url ?? "";
+    const isAuthEndpoint =
+      url.includes("/auth/refresh-token") || url.includes("/login");
     // Only intercept 401s that haven't been retried yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !isAuthEndpoint // ← don't intercept auth endpoints
+    ) {
       if (isRefreshing) {
         // Another refresh is already in flight — queue this request
         return new Promise((resolve, reject) => {

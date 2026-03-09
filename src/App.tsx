@@ -12,15 +12,12 @@ import { ProtectedRoute } from "./components/common/ProtectedRoute";
 // Pages
 import { LoginPage } from "./pages/auth/Login";
 import { RemindersPage } from "./pages/reminders/Reminders";
-import {
-  DashboardPage,
-  GroupsPage,
-  GroupDetailPage,
-  NotificationsPage,
-  ActivityPage,
-  ProfilePage,
-  RegisterPage,
-} from "./pages";
+import { GroupsPage } from "./pages/groups/Groups";
+import { GroupDetailPage } from "./pages/groups/GroupDetails";
+import { NotificationsPage } from "./pages/notifications/Notification";
+import { ActivityPage } from "./pages/activity/Activity";
+
+import { DashboardPage, ProfilePage, RegisterPage } from "./pages";
 
 // Stores
 import { useAuthStore } from "./store/authStore";
@@ -31,12 +28,19 @@ import { ROUTES } from "./config/routes";
 
 export default function App() {
   useEffect(() => {
-    // Apply saved dark mode preference BEFORE first paint
     const isDark = useUIStore.getState().isDarkMode;
     document.documentElement.classList.toggle("dark", isDark);
 
-    // Try to restore existing session
-    useAuthStore.getState().initialize();
+    // Don't initialize on auth pages — no session to restore
+    const isAuthPage = ["/login", "/register"].includes(
+      window.location.pathname,
+    );
+    if (!isAuthPage) {
+      useAuthStore.getState().initialize();
+    } else {
+      // Still need to mark initialization as done so ProtectedRoute doesn't spin
+      useAuthStore.setState({ isInitializing: false });
+    }
   }, []);
 
   return (

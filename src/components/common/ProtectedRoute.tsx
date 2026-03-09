@@ -7,7 +7,8 @@ export const ProtectedRoute = () => {
   const { isAuthenticated, isInitializing } = useAuthStore();
   const location = useLocation();
 
-  if (isInitializing) return <PageSpinner />;
+  // Only block on initializing if we're not already authenticated
+  if (isInitializing && !isAuthenticated) return <PageSpinner />;
 
   if (!isAuthenticated) {
     return <Navigate to={ROUTES.LOGIN} state={{ from: location }} replace />;
