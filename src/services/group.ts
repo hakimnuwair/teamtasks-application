@@ -1,6 +1,8 @@
 /**
- * services/group.ts — Group API calls
- * Types are imported from types/types.ts (no local re-declarations).
+ * services/group.ts — Group CRUD API calls only.
+ *
+ * All invitation calls live in services/invitation.ts and match the
+ * backend router at /api/invitations/*.
  */
 import api from "../config/axios";
 import type {
@@ -42,23 +44,14 @@ export const deleteGroup = async (id: string): Promise<void> => {
   await api.delete(`/groups/${id}`);
 };
 
-export const inviteMember = async (
-  groupId: string,
-  payload: InviteMemberPayload,
-): Promise<Group> => {
-  const { data } = await api.post<ApiResponse<Group>>(
-    `/groups/${groupId}/members`,
-    payload,
-  );
-  return data.data;
-};
-
+/**
+ * removeMember — DELETE /groups/:groupId/members/:memberId
+ * Backend returns { message } not a full Group — so we return void and
+ * let the caller reload the group via getGroupById.
+ */
 export const removeMember = async (
   groupId: string,
   memberId: string,
-): Promise<Group> => {
-  const { data } = await api.delete<ApiResponse<Group>>(
-    `/groups/${groupId}/members/${memberId}`,
-  );
-  return data.data;
+): Promise<void> => {
+  await api.delete(`/groups/${groupId}/members/${memberId}`);
 };

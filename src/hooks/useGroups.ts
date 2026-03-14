@@ -1,9 +1,13 @@
 /**
- * hooks/useGroups.ts — Groups data hook
+ * hooks/useGroups.ts — Groups data hook.
+ *
+ * invite() → invitationService.sendInvitation (POST /invitations/groups/:id/invite)
+ * removeMember() → groupService.removeMember  (DELETE /groups/:id/members/:memberId)
  */
 import { useEffect, useCallback } from "react";
 import { useGroupStore } from "../store/groupStore";
 import * as groupService from "../services/group";
+import * as invitationService from "../services/invitation";
 import toast from "react-hot-toast";
 import type { CreateGroupPayload, InviteMemberPayload } from "../types/types";
 
@@ -14,7 +18,6 @@ export const useGroups = () => {
     error,
     setGroups,
     addGroup,
-    updateGroup,
     removeGroup,
     setLoading,
     setError,
@@ -59,26 +62,28 @@ export const useGroups = () => {
     }
   };
 
-  const invite = async (
-    groupId: string,
-    email: string,
-    role?: InviteMemberPayload["role"],
-  ) => {
+  /**
+   * Sends an invitation via the invitation service.
+   * The invited user appears as a group member only AFTER they accept.
+   */
+  const invite = async (groupId: string, payload: InviteMemberPayload) => {
     try {
-      const updated = await groupService.inviteMember(groupId, { email, role });
-      updateGroup(updated);
-      toast.success("Member invited!");
-      return updated;
-    } catch {
-      toast.error("Could not invite member");
-      throw new Error("invite failed");
+      await invitationService.sendInvitation(groupId, payload);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Could not send invitation";
+      toast.error(msg);
+      throw err;
     }
   };
 
+  /**
+   * Removes a member. Re-fetches the group list so member counts update.
+   */
   const removeMember = async (groupId: string, memberId: string) => {
     try {
-      const updated = await groupService.removeMember(groupId, memberId);
-      updateGroup(updated);
+      await groupService.removeMember(groupId, memberId);
+      await fetchGroups();
       toast.success("Member removed");
     } catch {
       toast.error("Could not remove member");

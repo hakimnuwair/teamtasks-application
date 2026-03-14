@@ -141,6 +141,8 @@ export interface Notification {
   message: string;
   isRead: boolean;
   readAt: string | null;
+  // Backend stores arbitrary data here — e.g. { invitationId } for GROUP_INVITE
+  metadata: Record<string, unknown>;
   createdAt: string;
 }
 
@@ -168,4 +170,31 @@ export interface ActivityLog {
   action: ActivityAction;
   metadata: Record<string, unknown>; // backend field is "metadata" not "details"
   createdAt: string;
+}
+
+// ─── GROUP INVITATIONS ────────────────────────────────────────────────────────
+
+// Backend status enum — note: CANCELLED exists in DB but getMyInvitations only
+// returns PENDING ones, and respondToInvitation sets ACCEPTED | DECLINED.
+export type InvitationStatus =
+  | "PENDING"
+  | "ACCEPTED"
+  | "DECLINED"
+  | "CANCELLED";
+
+/**
+ * Shape returned by GET /invitations/me
+ * invitedBy is populated; invitedUser is NOT populated (ObjectId only).
+ * groupId is populated with name, description, members.
+ */
+export interface GroupInvitation {
+  _id: string;
+  groupId: { _id: string; name: string; description?: string };
+  invitedBy: { _id: string; name: string; email: string };
+  invitedUser: string; // raw ObjectId — not populated
+  role: GroupRole;
+  status: InvitationStatus;
+  expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }

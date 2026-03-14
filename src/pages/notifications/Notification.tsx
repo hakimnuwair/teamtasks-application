@@ -1,8 +1,11 @@
 /**
  * pages/notifications/Notifications.tsx
  *
- * NotificationType matches backend exactly:
- *   "REMINDER_DUE" | "GROUP_INVITE" | "REMINDER_ASSIGNED" | "SYSTEM"
+ * GROUP_INVITE notifications show Accept / Decline buttons.
+ * The invitationId lives in notification.metadata.invitationId
+ * (set by the backend when creating the notification in invitationService.js).
+ *
+ * All invitation API calls go through services/invitation.ts.
  */
 
 import { useEffect, useState } from "react";
@@ -13,13 +16,18 @@ import {
   UserPlus,
   CheckSquare,
   Info,
+  Check,
+  X,
 } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { Button, EmptyState, Card } from "../../components/ui";
 import { useNotifications } from "../../hooks/useNotifications";
+import * as invitationService from "../../services/invitation";
+import toast from "react-hot-toast";
 import type { Notification, NotificationType } from "../../types/types";
 
-// ── Type → visual config (keyed to exact backend enum values) ─────────────────
+// ── Type config ───────────────────────────────────────────────────────────────
+
 const TYPE_CFG: Record<
   NotificationType,
   { icon: React.ElementType; color: string; bg: string }
@@ -46,6 +54,8 @@ const TYPE_CFG: Record<
   },
 };
 
+// ── Relative time ─────────────────────────────────────────────────────────────
+
 function relativeTime(date: string) {
   const diff = (Date.now() - new Date(date).getTime()) / 1000;
   if (diff < 60) return "just now";
@@ -54,7 +64,102 @@ function relativeTime(date: string) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+// ── Inline spinner ────────────────────────────────────────────────────────────
+
+function Spin() {
+  return (
+    <svg
+      className="w-3.5 h-3.5 animate-spin shrink-0"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+      />
+    </svg>
+  );
+}
+
+// ── Invite action buttons ─────────────────────────────────────────────────────
+
+function InviteActions({
+  invitationId,
+  onDone,
+}: {
+  invitationId: string;
+  onDone: (accepted: boolean) => void;
+}) {
+  const [busy, setBusy] = useState<"accept" | "decline" | null>(null);
+
+  const handle = async (accept: boolean) => {
+    setBusy(accept ? "accept" : "decline");
+    try {
+      await invitationService.respondToInvitation(invitationId, accept);
+      toast.success(accept ? "You joined the group!" : "Invitation declined");
+      onDone(accept);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Could not respond to invitation";
+      toast.error(msg);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 pt-0.5">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          handle(true);
+        }}
+        disabled={busy !== null}
+        className={cn(
+          "flex items-center gap-1.5 h-7 px-3 rounded-lg text-[11px] font-medium",
+          "bg-gradient-to-r from-teal-500 to-teal-600 text-white",
+          "shadow-sm shadow-[rgba(20,184,166,0.28)]",
+          "hover:from-teal-400 hover:to-teal-500",
+          "active:scale-[0.97] transition-all duration-[250ms]",
+          busy !== null && "opacity-60 pointer-events-none",
+        )}
+      >
+        {busy === "accept" ? <Spin /> : <Check className="w-3 h-3" />}
+        Accept
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          handle(false);
+        }}
+        disabled={busy !== null}
+        className={cn(
+          "flex items-center gap-1.5 h-7 px-3 rounded-lg text-[11px] font-medium",
+          "border border-[#FECDD3] dark:border-[rgba(244,63,94,0.30)]",
+          "text-[#BE123C] dark:text-[#FDA4AF] bg-white dark:bg-[#161B22]",
+          "hover:bg-[#FFF1F2] dark:hover:bg-[rgba(244,63,94,0.08)]",
+          "active:scale-[0.97] transition-all duration-[250ms]",
+          busy !== null && "opacity-60 pointer-events-none",
+        )}
+      >
+        {busy === "decline" ? <Spin /> : <X className="w-3 h-3" />}
+        Decline
+      </button>
+    </div>
+  );
+}
+
 // ── Notification row ──────────────────────────────────────────────────────────
+
 function NotificationRow({
   n,
   onMarkRead,
@@ -64,21 +169,36 @@ function NotificationRow({
 }) {
   const cfg = TYPE_CFG[n.type] ?? TYPE_CFG.SYSTEM;
   const Icon = cfg.icon;
+  const isInvite = n.type === "GROUP_INVITE";
+
+  // Backend stores invitationId in notification.metadata.invitationId
+  const invitationId = isInvite
+    ? ((n.metadata?.invitationId as string | undefined) ?? "")
+    : "";
+
+  const handleClick = () => {
+    if (!isInvite && !n.isRead) onMarkRead(n._id);
+  };
 
   return (
     <div
-      onClick={() => !n.isRead && onMarkRead(n._id)}
+      onClick={handleClick}
       className={cn(
         "flex items-start gap-4 p-4 rounded-xl border transition-all duration-[250ms]",
         n.isRead
           ? "bg-white dark:bg-[#161B22] border-[#E2E6ED] dark:border-[#21262D]"
-          : "bg-[#FAFBFF] dark:bg-[rgba(99,102,241,0.06)] border-[#C7D2FE] dark:border-[rgba(99,102,241,0.22)] cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500",
+          : [
+              "bg-[#FAFBFF] dark:bg-[rgba(99,102,241,0.06)]",
+              "border-[#C7D2FE] dark:border-[rgba(99,102,241,0.22)]",
+              !isInvite &&
+                "cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500",
+            ],
       )}
     >
-      {/* Icon */}
+      {/* Type icon */}
       <div
         className={cn(
-          "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+          "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5",
           cfg.bg,
           cfg.color,
         )}
@@ -86,7 +206,7 @@ function NotificationRow({
         <Icon className="w-4 h-4" />
       </div>
 
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 space-y-1.5">
         {/* Message */}
         <p
           className={cn(
@@ -98,9 +218,10 @@ function NotificationRow({
         >
           {n.message}
         </p>
-        {/* Linked reminder or group */}
+
+        {/* Linked context */}
         {(n.reminderId || n.groupId) && (
-          <p className="text-xs text-[#94A3B8] mt-0.5">
+          <p className="text-xs text-[#94A3B8]">
             {n.reminderId && (
               <span className="text-indigo-500 dark:text-indigo-400">
                 "{n.reminderId.title}"
@@ -110,16 +231,23 @@ function NotificationRow({
               <span>
                 {" "}
                 in{" "}
-                <span className="text-teal-500 dark:text-teal-400">
+                <span className="text-teal-500 dark:text-teal-400 font-medium">
                   {n.groupId.name}
                 </span>
               </span>
             )}
           </p>
         )}
-        <p className="text-xs text-[#94A3B8] mt-1">
-          {relativeTime(n.createdAt)}
-        </p>
+
+        {/* Accept / Decline — only for unread GROUP_INVITE with a valid invitationId */}
+        {isInvite && !n.isRead && invitationId && (
+          <InviteActions
+            invitationId={invitationId}
+            onDone={() => onMarkRead(n._id)}
+          />
+        )}
+
+        <p className="text-xs text-[#94A3B8]">{relativeTime(n.createdAt)}</p>
       </div>
 
       {/* Unread dot */}
@@ -131,11 +259,12 @@ function NotificationRow({
 }
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
+
 function NotifSkeleton() {
   return (
     <div className="flex items-start gap-4 p-4 rounded-xl border border-[#E2E6ED] dark:border-[#21262D] bg-white dark:bg-[#161B22]">
       <div className="w-9 h-9 rounded-xl shrink-0 animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
-      <div className="flex-1 space-y-2">
+      <div className="flex-1 space-y-2 pt-1">
         <div className="h-3.5 rounded-md w-4/5 animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
         <div className="h-2.5 rounded-md w-1/4 animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
       </div>
@@ -144,6 +273,7 @@ function NotifSkeleton() {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
+
 export const NotificationsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "unread">("all");

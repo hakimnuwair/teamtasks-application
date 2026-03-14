@@ -202,9 +202,13 @@ const avatarSizes = {
   xl: "w-14 h-14 text-[20px]",
 };
 
-function getInitials(name: string) {
+function getInitials(name: string): string {
+  // FIX: guard against undefined/empty name before calling string methods
+  if (!name || typeof name !== "string" || name.trim() === "") return "?";
   return name
+    .trim()
     .split(" ")
+    .filter(Boolean)
     .map((n) => n[0])
     .join("")
     .toUpperCase()
@@ -222,13 +226,18 @@ const AVATAR_COLORS = [
   "from-sky-500 to-blue-600",
 ];
 
-function nameToColor(name: string) {
+function nameToColor(name: string): string {
+  // FIX: guard against undefined/null/empty — avoids the .length crash
+  if (!name || typeof name !== "string") return AVATAR_COLORS[0];
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
   return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
 export function Avatar({ name, size = "md", online, className }: AvatarProps) {
+  // FIX: normalise to a safe string so downstream helpers never see undefined
+  const safeName = name && typeof name === "string" ? name : "";
+
   return (
     <div className={cn("relative shrink-0", className)}>
       <div
@@ -236,10 +245,10 @@ export function Avatar({ name, size = "md", online, className }: AvatarProps) {
           avatarSizes[size],
           "rounded-full flex items-center justify-center font-semibold text-white",
           "bg-gradient-to-br",
-          nameToColor(name),
+          nameToColor(safeName),
         )}
       >
-        {getInitials(name)}
+        {getInitials(safeName)}
       </div>
       {online && (
         <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-teal-500 border-2 border-white dark:border-[#161B22] shadow-[0_0_6px_rgba(20,184,166,0.60)]" />
@@ -259,13 +268,17 @@ interface AvatarStackProps {
 }
 
 export function AvatarStack({ users, max = 3, size = "sm" }: AvatarStackProps) {
-  const visible = users.slice(0, max);
-  const rest = users.length - max;
+  // FIX: guard against undefined/null users array
+  const safeUsers = Array.isArray(users) ? users : [];
+  const visible = safeUsers.slice(0, max);
+  const rest = safeUsers.length - max;
 
   return (
     <div className="flex flex-row-reverse items-center">
+      {/* FIX: added key="overflow-count" so React doesn't warn about missing keys */}
       {rest > 0 && (
         <div
+          key="overflow-count"
           className={cn(
             avatarSizes[size],
             "rounded-full flex items-center justify-center text-[10px] font-semibold",
@@ -277,9 +290,11 @@ export function AvatarStack({ users, max = 3, size = "sm" }: AvatarStackProps) {
         </div>
       )}
       {[...visible].reverse().map((u) => (
+        // FIX: key was already on the wrapping div, but use u._id reliably
         <div key={u._id} className="-ml-2">
           <Avatar
-            name={u.name}
+            // FIX: fall back to empty string if u.name is somehow undefined
+            name={u?.name ?? ""}
             size={size}
             className="border-2 border-white dark:border-[#161B22]"
           />

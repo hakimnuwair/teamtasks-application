@@ -63,7 +63,7 @@ export function SlideModal({
       <div
         onClick={onClose}
         className={cn(
-          "fixed inset-0 z-50",
+          "fixed inset-0 z-50 m-0",
           // §6 backdrop: semi-transparent dark overlay
           "bg-black/40 dark:bg-black/65",
           "backdrop-blur-[2px]",

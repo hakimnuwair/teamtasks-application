@@ -1,8 +1,6 @@
 /**
- * components/modal/CreateReminderModal.tsx
- *
- * Slide-in-from-right modal for creating a new reminder.
- * Uses SlideModal shell + shared Field/Input/Button primitives.
+ * Slide-in modal for creating a new reminder.
+ * `scope` is UI-only — controls whether groupId is sent to the API.
  */
 
 import { useState } from "react";
@@ -19,7 +17,6 @@ interface Props {
   onClose: () => void;
 }
 
-// ── Priority radio option ─────────────────────────────────────────────────────
 const PRIORITIES: {
   value: Priority;
   label: string;
@@ -46,7 +43,6 @@ const PRIORITIES: {
   },
 ];
 
-// ── Initial form state ────────────────────────────────────────────────────────
 const INIT = {
   title: "",
   description: "",
@@ -66,13 +62,11 @@ export function CreateReminderModal({ isOpen, onClose }: Props) {
   const { create } = useReminders();
   const { groups } = useGroupStore();
 
-  // ── Field helpers ───────────────────────────────────────────────────────────
   const set = (k: keyof typeof INIT, v: string) => {
     setForm((f) => ({ ...f, [k]: v }));
     if (errors[k]) setErrors((e) => ({ ...e, [k]: undefined }));
   };
 
-  // ── Validation ──────────────────────────────────────────────────────────────
   const validate = () => {
     const e: FormErrors = {};
     if (!form.title.trim()) e.title = "Title is required";
@@ -83,17 +77,16 @@ export function CreateReminderModal({ isOpen, onClose }: Props) {
     return Object.keys(e).length === 0;
   };
 
-  // ── Submit ──────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!validate()) return;
     setIsSubmitting(true);
     try {
+      // `scope` is stripped here — only groupId reaches the API
       await create({
         title: form.title.trim(),
         description: form.description.trim() || undefined,
         dueDateTime: form.dueDateTime,
         priority: form.priority,
-        scope: form.scope,
         groupId: form.scope === "GROUP" ? form.groupId : undefined,
       });
       toast.success("Reminder created!");
@@ -113,7 +106,6 @@ export function CreateReminderModal({ isOpen, onClose }: Props) {
     onClose();
   };
 
-  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <SlideModal
       isOpen={isOpen}
@@ -140,7 +132,6 @@ export function CreateReminderModal({ isOpen, onClose }: Props) {
           onChange={(e) => set("description", e.target.value)}
           rows={3}
           className={cn(
-            // Same base as Input — §9.3
             "w-full px-3.5 py-3 text-sm rounded-lg resize-none",
             "bg-white/82 dark:bg-[#0D1117]/90 backdrop-blur-sm",
             "text-[#0F172A] dark:text-[#F0F6FC] placeholder:text-[#94A3B8]",
@@ -170,7 +161,6 @@ export function CreateReminderModal({ isOpen, onClose }: Props) {
             "focus:outline-none",
             "hover:border-[#C8CDD8] dark:hover:border-[#30363D]",
             "transition-all duration-[250ms]",
-            // webkit calendar picker color
             "[color-scheme:light] dark:[color-scheme:dark]",
           )}
         />
@@ -192,7 +182,6 @@ export function CreateReminderModal({ isOpen, onClose }: Props) {
                   : "border-[#E2E6ED] dark:border-[#21262D] text-[#475569] dark:text-[#8B949E] hover:border-[#C8CDD8] dark:hover:border-[#30363D] bg-white dark:bg-[#161B22]",
               )}
             >
-              {/* Colored dot */}
               <span
                 className={cn(
                   "w-1.5 h-1.5 rounded-full shrink-0",
@@ -229,7 +218,7 @@ export function CreateReminderModal({ isOpen, onClose }: Props) {
         </div>
       </Field>
 
-      {/* Group selector — only when scope is GROUP */}
+      {/* Group selector — visible only when scope is GROUP */}
       {form.scope === "GROUP" && (
         <Field label="Group" error={errors.groupId} required>
           <select
@@ -258,8 +247,7 @@ export function CreateReminderModal({ isOpen, onClose }: Props) {
         </Field>
       )}
 
-      {/* ── Footer actions ─────────────────────────────────────────────────── */}
-      {/* Sticky at bottom of scroll area */}
+      {/* Footer */}
       <div
         className={cn(
           "sticky bottom-0 -mx-6 -mb-5 px-6 py-4 mt-2",

@@ -1,5 +1,6 @@
 /**
- * pages/groups/Groups.tsx — Groups list page
+ * Groups list page.
+ * memberCount is derived from members.length because lean() strips Mongoose virtuals.
  */
 
 import { useState } from "react";
@@ -27,6 +28,7 @@ import { useGroups } from "../../hooks/useGroups";
 import type { Group, GroupRole } from "../../types/types";
 
 // ── Role badge ────────────────────────────────────────────────────────────────
+
 const ROLE_CFG: Record<
   GroupRole,
   { icon: React.ElementType; label: string; cls: string }
@@ -59,9 +61,13 @@ function RoleBadge({ role }: { role: GroupRole }) {
 }
 
 // ── Group card ────────────────────────────────────────────────────────────────
+
 function GroupCard({ group }: { group: Group }) {
   const navigate = useNavigate();
   const myRole = (group.members[0]?.role ?? "MEMBER") as GroupRole;
+
+  // Use members.length — lean() strips the memberCount virtual from the API response
+  const memberCount = group.members?.length ?? 0;
 
   return (
     <article
@@ -122,15 +128,17 @@ function GroupCard({ group }: { group: Group }) {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <AvatarStack
-            users={group.members.map((m) => ({
-              _id: m.userId._id,
-              name: m.userId.name,
-            }))}
+            users={group.members
+              .filter((m) => m.userId?.name)
+              .map((m) => ({
+                _id: m.userId._id,
+                name: m.userId.name,
+              }))}
             max={4}
             size="xs"
           />
           <span className="text-[11px] text-[#94A3B8]">
-            {group.memberCount} member{group.memberCount !== 1 ? "s" : ""}
+            {memberCount} member{memberCount !== 1 ? "s" : ""}
           </span>
         </div>
         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.14)] text-[#4338CA] dark:text-[#A5B4FC]">
@@ -153,6 +161,7 @@ function GroupCard({ group }: { group: Group }) {
 }
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
+
 function GroupSkeleton() {
   return (
     <div className="rounded-xl border p-5 bg-white dark:bg-[#161B22] border-[#E2E6ED] dark:border-[#21262D]">
@@ -177,6 +186,7 @@ function GroupSkeleton() {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
+
 export const GroupsPage = () => {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -186,6 +196,12 @@ export const GroupsPage = () => {
     (g) =>
       g.name.toLowerCase().includes(search.toLowerCase()) ||
       (g.description ?? "").toLowerCase().includes(search.toLowerCase()),
+  );
+
+  // Derive total member count from members arrays (virtual is stripped by lean())
+  const totalMembers = groups.reduce(
+    (acc, g) => acc + (g.members?.length ?? 0),
+    0,
   );
 
   return (
@@ -221,7 +237,7 @@ export const GroupsPage = () => {
             },
             {
               label: "Members",
-              value: groups.reduce((a, g) => a + g.memberCount, 0),
+              value: totalMembers,
               icon: Users,
               color: "text-teal-600 dark:text-teal-400",
               bg: "bg-[#F0FDFA] dark:bg-[rgba(20,184,166,0.12)]",

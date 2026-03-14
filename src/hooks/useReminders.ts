@@ -4,9 +4,9 @@ import * as reminderService from "../services/reminder";
 import toast from "react-hot-toast";
 
 /**
- * Primary hook for the Reminders page.
- * - Reads filters from store, fetches from API, writes back to store.
- * - Re-fetches automatically whenever filters change.
+ * Reminders data hook.
+ * Reads filters from store, fetches from API, writes back to store.
+ * Re-fetches after every mutation to get fully-populated documents.
  */
 export const useReminders = () => {
   const {
@@ -16,15 +16,11 @@ export const useReminders = () => {
     isLoading,
     error,
     setReminders,
-    addReminder,
-    updateReminder,
-    removeReminder,
     setFilters,
     setLoading,
     setError,
   } = useReminderStore();
 
-  // ── Fetch ──────────────────────────────────────────────────────────────────
   const fetchReminders = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -40,39 +36,35 @@ export const useReminders = () => {
     }
   }, [filters, setReminders, setLoading, setError]);
 
-  // Re-fetch whenever filters (status, priority, page) change
   useEffect(() => {
     fetchReminders();
   }, [fetchReminders]);
 
-  // ── Complete ───────────────────────────────────────────────────────────────
   const complete = async (id: string) => {
     try {
-      const updated = await reminderService.completeReminder(id);
-      updateReminder(updated);
+      await reminderService.completeReminder(id);
       toast.success("Reminder marked complete!");
+      await fetchReminders();
     } catch {
       toast.error("Could not complete reminder");
     }
   };
 
-  // ── Delete ─────────────────────────────────────────────────────────────────
   const remove = async (id: string) => {
     try {
       await reminderService.deleteReminder(id);
-      removeReminder(id);
       toast.success("Reminder deleted");
+      await fetchReminders();
     } catch {
       toast.error("Could not delete reminder");
     }
   };
 
-  // ── Create (called by modal, updates store optimistically) ─────────────────
   const create = async (
     payload: Parameters<typeof reminderService.createReminder>[0],
   ) => {
     const reminder = await reminderService.createReminder(payload);
-    addReminder(reminder);
+    await fetchReminders();
     return reminder;
   };
 

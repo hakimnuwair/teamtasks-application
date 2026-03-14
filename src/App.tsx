@@ -16,8 +16,10 @@ import { GroupsPage } from "./pages/groups/Groups";
 import { GroupDetailPage } from "./pages/groups/GroupDetails";
 import { NotificationsPage } from "./pages/notifications/Notification";
 import { ActivityPage } from "./pages/activity/Activity";
+import { DashboardPage } from "./pages/dashoboard/Dashboard";
+import { ProfilePage } from "./pages/profile/Profile";
 
-import { DashboardPage, ProfilePage, RegisterPage } from "./pages";
+import { RegisterPage } from "./pages/auth/Register";
 
 // Stores
 import { useAuthStore } from "./store/authStore";
@@ -25,6 +27,7 @@ import { useUIStore } from "./store/uiStore";
 
 // Config
 import { ROUTES } from "./config/routes";
+import { OAuthCallbackPage } from "./pages/auth/OAuthCallback";
 
 export default function App() {
   useEffect(() => {
@@ -55,6 +58,8 @@ export default function App() {
       <Routes>
         {/* Root redirect */}
         <Route path="/" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+
+        <Route path="/auth/callback" element={<OAuthCallbackPage />} />
 
         {/* Auth pages */}
         <Route element={<AuthLayout />}>

@@ -36,7 +36,13 @@ import * as reminderService from "../../services/reminder";
 import { parseForm, inviteMemberSchema } from "../../lib/validations";
 import { formatDueDate, isOverdue } from "../../utils/formatDate";
 import toast from "react-hot-toast";
-import type { Group, GroupRole, Reminder } from "../../types/types";
+import type {
+  Group,
+  GroupRole,
+  Reminder,
+  InviteMemberPayload,
+} from "../../types/types";
+import { useGroups } from "../../hooks/useGroups";
 
 // ── Role config — ADMIN and MEMBER only (backend has no OWNER) ────────────────
 const ROLE_CFG: Record<
@@ -149,10 +155,12 @@ function ReminderRow({ reminder }: { reminder: Reminder }) {
 // ── Invite modal — Zod validated ──────────────────────────────────────────────
 function InviteModal({
   groupId,
+  invite,
   onDone,
   onClose,
 }: {
   groupId: string;
+  invite: (groupId: string, payload: InviteMemberPayload) => Promise<void>;
   onDone: () => void;
   onClose: () => void;
 }) {
@@ -173,7 +181,7 @@ function InviteModal({
 
     setBusy(true);
     try {
-      await groupService.inviteMember(groupId, {
+      await invite(groupId, {
         email: data.email,
         role: data.role,
       });
@@ -278,6 +286,13 @@ export const GroupDetailPage = () => {
   );
   const [createOpen, setCreateOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+
+  const {
+    groups,
+    isLoading: groupsLoading,
+    removeMember,
+    invite,
+  } = useGroups();
 
   useEffect(() => {
     if (!id) return;
@@ -541,6 +556,7 @@ export const GroupDetailPage = () => {
       {inviteOpen && (
         <InviteModal
           groupId={group._id}
+          invite={invite}
           onDone={() => setInviteOpen(false)}
           onClose={() => setInviteOpen(false)}
         />
