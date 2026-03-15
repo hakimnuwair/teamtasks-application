@@ -1,16 +1,26 @@
+/**
+ * App.tsx
+ *
+ * Router root. Handles session initialization on mount:
+ * - /auth/callback: skips initialize(), leaves isInitializing:true so
+ *   OAuthCallbackPage can store the token first then call initialize() itself.
+ * - /login, /register, /forgot-password: sets isInitializing:false immediately
+ *   (no session to restore on auth pages).
+ * - All other routes: calls initialize() to restore existing session.
+ */
+
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 
-// Layouts
 import { AuthLayout } from "./layouts/AuthLayout";
 import { AppLayout } from "./layouts/AppLayout";
-
-// Route guard
 import { ProtectedRoute } from "./components/common/ProtectedRoute";
 
-// Pages
 import { LoginPage } from "./pages/auth/Login";
+import { RegisterPage } from "./pages/auth/Register";
+import { ForgotPasswordPage } from "./pages/auth/ForgotPassowrd";
+import { OAuthCallbackPage } from "./pages/auth/OAuthCallback";
 import { RemindersPage } from "./pages/reminders/Reminders";
 import { GroupsPage } from "./pages/groups/Groups";
 import { GroupDetailPage } from "./pages/groups/GroupDetails";
@@ -19,52 +29,52 @@ import { ActivityPage } from "./pages/activity/Activity";
 import { DashboardPage } from "./pages/dashoboard/Dashboard";
 import { ProfilePage } from "./pages/profile/Profile";
 
-import { RegisterPage } from "./pages/auth/Register";
-
-// Stores
 import { useAuthStore } from "./store/authStore";
 import { useUIStore } from "./store/uiStore";
-
-// Config
 import { ROUTES } from "./config/routes";
-import { OAuthCallbackPage } from "./pages/auth/OAuthCallback";
+
+const SKIP_INIT_PATHS = [
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/auth/callback",
+];
 
 export default function App() {
   useEffect(() => {
     const isDark = useUIStore.getState().isDarkMode;
     document.documentElement.classList.toggle("dark", isDark);
 
-    // Don't initialize on auth pages — no session to restore
-    const isAuthPage = ["/login", "/register"].includes(
-      window.location.pathname,
-    );
-    if (!isAuthPage) {
-      useAuthStore.getState().initialize();
+    const path = window.location.pathname;
+
+    if (SKIP_INIT_PATHS.some((p) => path.startsWith(p))) {
+      // /auth/callback stays isInitializing:true — OAuthCallbackPage manages it
+      if (!path.startsWith("/auth/callback")) {
+        useAuthStore.setState({ isInitializing: false });
+      }
     } else {
-      // Still need to mark initialization as done so ProtectedRoute doesn't spin
-      useAuthStore.setState({ isInitializing: false });
+      useAuthStore.getState().initialize();
     }
   }, []);
 
   return (
     <BrowserRouter>
-      {/* 
-        Toast — glassmorphism style.
-        Colors use CSS-in-JS because react-hot-toast needs inline styles.
-        We read dark mode state directly here.
-      */}
       <ToastProvider />
 
       <Routes>
-        {/* Root redirect */}
         <Route path="/" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
 
+        {/* OAuth callback — no layout wrapper, manages own auth sequence */}
         <Route path="/auth/callback" element={<OAuthCallbackPage />} />
 
-        {/* Auth pages */}
+        {/* Unauthenticated pages */}
         <Route element={<AuthLayout />}>
           <Route path={ROUTES.LOGIN} element={<LoginPage />} />
           <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
+          <Route
+            path={ROUTES.FORGOT_PASSWORD}
+            element={<ForgotPasswordPage />}
+          />
         </Route>
 
         {/* Protected app pages */}
@@ -83,18 +93,14 @@ export default function App() {
           </Route>
         </Route>
 
-        {/* 404 fallback */}
         <Route path="*" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
       </Routes>
     </BrowserRouter>
   );
 }
 
-// ── Toast provider ────────────────────────────────────────────────────────────
-// Reads dark mode to style toasts correctly
 function ToastProvider() {
   const isDark = useUIStore((s) => s.isDarkMode);
-
   return (
     <Toaster
       position="top-right"

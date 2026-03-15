@@ -1,3 +1,11 @@
+/**
+ * components/common/ProtectedRoute.tsx
+ *
+ * Shows a spinner while isInitializing && !isAuthenticated (covers the OAuth
+ * callback window where isInitializing stays true until initialize() completes).
+ * Redirects to login once loading is done and user is not authenticated.
+ */
+
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
 import { PageSpinner } from "../ui";
@@ -7,7 +15,6 @@ export const ProtectedRoute = () => {
   const { isAuthenticated, isInitializing } = useAuthStore();
   const location = useLocation();
 
-  // Only block on initializing if we're not already authenticated
   if (isInitializing && !isAuthenticated) return <PageSpinner />;
 
   if (!isAuthenticated) {

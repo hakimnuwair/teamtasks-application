@@ -1,61 +1,56 @@
 /**
- * services/users.ts — User API calls.
+ * services/users.ts
  *
- * Endpoints (from backend userRoutes.js):
- *   GET    /users/search?q=    → search users by name/email
- *   GET    /users/:id          → get user by ID
- *   PATCH  /users/:id          → update profile fields (name, email)
- *
- * Password change is handled via a separate auth route if it exists,
- * or falls back to PATCH /users/:id with { currentPassword, newPassword }.
+ * GET  /users/search?q= → { success, message, data: UserSearchResult[] }  (array → body.data)
+ * GET  /users/:id       → { success, message, ...userFields }              (object flat)
+ * PATCH /users/:id      → { success, message, ...userFields }
  */
-
 import api from "../config/axios";
-import type { User, ApiResponse } from "../types/types";
+import type { User } from "../types/types";
 
 export interface UserSearchResult {
   _id: string;
   name: string;
   email: string;
 }
-
 export interface UpdateProfilePayload {
   name?: string;
   email?: string;
 }
-
 export interface ChangePasswordPayload {
   currentPassword: string;
   newPassword: string;
 }
 
-/** Search users by name or email (for invite flows). */
 export const searchUsers = async (
   query: string,
 ): Promise<UserSearchResult[]> => {
   if (!query.trim()) return [];
-  const { data } = await api.get<ApiResponse<UserSearchResult[]>>(
-    `/users/search?q=${encodeURIComponent(query.trim())}`,
-  );
+  const { data } = await api.get<{
+    success: boolean;
+    message: string;
+    data: UserSearchResult[];
+  }>(`/users/search?q=${encodeURIComponent(query.trim())}`);
   return data.data ?? [];
 };
 
-/** Get a user by ID. */
 export const getUserById = async (id: string): Promise<User> => {
-  const { data } = await api.get<ApiResponse<User>>(`/users/${id}`);
-  return data.data;
+  const { data } = await api.get<User & { success: boolean; message: string }>(
+    `/users/${id}`,
+  );
+  return data;
 };
 
-/** Update display name or email. Backend: PATCH /users/:id */
 export const updateProfile = async (
   id: string,
   payload: UpdateProfilePayload,
 ): Promise<User> => {
-  const { data } = await api.patch<ApiResponse<User>>(`/users/${id}`, payload);
-  return data.data;
+  const { data } = await api.patch<
+    User & { success: boolean; message: string }
+  >(`/users/${id}`, payload);
+  return data;
 };
 
-/** Change password. PATCH /users/:id with password fields. */
 export const changePassword = async (
   id: string,
   payload: ChangePasswordPayload,

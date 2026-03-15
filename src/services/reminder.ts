@@ -1,85 +1,77 @@
+/**
+ * services/reminder.ts
+ *
+ * GET /reminders          → { success, message, reminders: [], pagination: {} }
+ * GET /groups/:id/reminders → same shape
+ * GET /reminders/:id      → { success, message, ...reminderFields }
+ * POST /reminders         → { success, message, ...reminderFields }  (201)
+ * PATCH /reminders/:id    → { success, message, ...reminderFields }
+ * POST /reminders/:id/complete → { success, message, ...reminderFields }
+ * DELETE /reminders/:id   → { success, message }
+ */
 import api from "../config/axios";
 import type {
   Reminder,
   CreateReminderPayload,
-  PaginatedResponse,
-  ApiResponse,
+  Pagination,
 } from "../types/types";
 
-interface GetRemindersParams {
+interface GetParams {
   status?: string;
   priority?: string;
   page?: number;
   limit?: number;
 }
+interface ListResponse {
+  success: boolean;
+  message: string;
+  reminders: Reminder[];
+  pagination: Pagination;
+}
+interface SingleResponse extends Reminder {
+  success: boolean;
+  message: string;
+}
 
-// ─── Fetch my reminders (paginated + filterable) ──────────────────────────────
-
-export const getReminders = async (params: GetRemindersParams = {}) => {
-  const { data } = await api.get<PaginatedResponse<Reminder>>("/reminders", {
-    params,
-  });
-  return {
-    reminders: data.reminders ?? [],
-    pagination: data.pagination,
-  };
+export const getReminders = async (params: GetParams = {}) => {
+  const { data } = await api.get<ListResponse>("/reminders", { params });
+  return { reminders: data.reminders ?? [], pagination: data.pagination };
 };
-
-// ─── Fetch reminders for a specific group ────────────────────────────────────
 
 export const getGroupReminders = async (
   groupId: string,
-  params: GetRemindersParams = {},
+  params: GetParams = {},
 ) => {
-  const { data } = await api.get<PaginatedResponse<Reminder>>(
-    `/groups/${groupId}/reminders`,
-    { params },
-  );
-  return {
-    reminders: data.reminders ?? [],
-    pagination: data.pagination,
-  };
+  const { data } = await api.get<ListResponse>(`/groups/${groupId}/reminders`, {
+    params,
+  });
+  return { reminders: data.reminders ?? [], pagination: data.pagination };
 };
-
-// ─── Get single reminder ─────────────────────────────────────────────────────
 
 export const getReminderById = async (id: string): Promise<Reminder> => {
-  const { data } = await api.get<ApiResponse<Reminder>>(`/reminders/${id}`);
-  return data.data;
+  const { data } = await api.get<SingleResponse>(`/reminders/${id}`);
+  return data;
 };
-
-// ─── Create ──────────────────────────────────────────────────────────────────
 
 export const createReminder = async (
   payload: CreateReminderPayload,
 ): Promise<Reminder> => {
-  const { data } = await api.post<ApiResponse<Reminder>>("/reminders", payload);
-  return data.data;
+  const { data } = await api.post<SingleResponse>("/reminders", payload);
+  return data;
 };
-
-// ─── Update ──────────────────────────────────────────────────────────────────
 
 export const updateReminder = async (
   id: string,
   payload: Partial<CreateReminderPayload>,
 ): Promise<Reminder> => {
-  const { data } = await api.put<ApiResponse<Reminder>>(
-    `/reminders/${id}`,
-    payload,
-  );
-  return data.data;
+  const { data } = await api.patch<SingleResponse>(`/reminders/${id}`, payload);
+  return data;
 };
-
-// ─── Complete ────────────────────────────────────────────────────────────────
 
 export const completeReminder = async (id: string): Promise<Reminder> => {
-  const { data } = await api.post<ApiResponse<Reminder>>(
-    `/reminders/${id}/complete`,
-  );
-  return data.data;
+  const { data } = await api.post<SingleResponse>(`/reminders/${id}/complete`);
+  return data;
 };
-
-// ─── Delete ──────────────────────────────────────────────────────────────────
 
 export const deleteReminder = async (id: string): Promise<void> => {
   await api.delete(`/reminders/${id}`);

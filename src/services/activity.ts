@@ -1,41 +1,43 @@
 /**
- * services/activity.ts — Activity log API calls
+ * services/activity.ts
+ *
+ * GET /activity            → { success, message, logs: [], pagination: {} }
+ * GET /groups/:id/activity → same shape
+ *   (activityLogService returns { logs, pagination } → Object.assign flat)
  */
 import api from "../config/axios";
-import type { ActivityLog, PaginatedResponse } from "../types/types";
+import type { ActivityLog, Pagination } from "../types/types";
 
 export interface GetActivityParams {
   page?: number;
   limit?: number;
 }
-
 export interface GetActivityResult {
   logs: ActivityLog[];
-  pagination: PaginatedResponse<ActivityLog>["pagination"];
+  pagination: Pagination | undefined;
+}
+
+interface ActivityResponse {
+  success: boolean;
+  message: string;
+  logs: ActivityLog[];
+  pagination: Pagination;
 }
 
 export const getUserActivity = async (
   params: GetActivityParams = {},
 ): Promise<GetActivityResult> => {
-  const { data } = await api.get<PaginatedResponse<ActivityLog>>("/activity", {
-    params,
-  });
-  return {
-    logs: data.logs ?? data.data ?? [],
-    pagination: data.pagination,
-  };
+  const { data } = await api.get<ActivityResponse>("/activity", { params });
+  return { logs: data.logs ?? [], pagination: data.pagination };
 };
 
 export const getGroupActivity = async (
   groupId: string,
   params: GetActivityParams = {},
 ): Promise<GetActivityResult> => {
-  const { data } = await api.get<PaginatedResponse<ActivityLog>>(
+  const { data } = await api.get<ActivityResponse>(
     `/groups/${groupId}/activity`,
     { params },
   );
-  return {
-    logs: data.logs ?? data.data ?? [],
-    pagination: data.pagination,
-  };
+  return { logs: data.logs ?? [], pagination: data.pagination };
 };

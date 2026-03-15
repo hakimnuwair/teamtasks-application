@@ -1,3 +1,11 @@
+/**
+ * pages/auth/Login.tsx
+ *
+ * Sign-in form with email/password and Google OAuth.
+ * Reads ?error= from URL to surface OAuth failure messages.
+ * On success, navigates to the page the user was trying to reach (or dashboard).
+ */
+
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,8 +16,8 @@ import { useAuthStore } from "../../store/authStore";
 import { Button, Field, Input } from "../../components/ui";
 import { ROUTES } from "../../config/routes";
 import { cn } from "../../utils/cn";
+import { parseApiError } from "../../config/axios";
 
-// ─── Google OAuth button (shared pattern with RegisterPage) ───────────────────
 function GoogleOAuthButton({ label }: { label: string }) {
   const BACKEND_URL =
     (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(
@@ -17,18 +25,12 @@ function GoogleOAuthButton({ label }: { label: string }) {
       "",
     ) ?? "http://localhost:5000";
 
-  const handleClick = () => {
-    sessionStorage.setItem(
-      "oauth_redirect",
-      window.location.origin + ROUTES.DASHBOARD,
-    );
-    window.location.href = `${BACKEND_URL}/api/v1/auth/google`;
-  };
-
   return (
     <button
       type="button"
-      onClick={handleClick}
+      onClick={() => {
+        window.location.href = `${BACKEND_URL}/api/v1/auth/google`;
+      }}
       className={cn(
         "w-full h-11 flex items-center justify-center gap-3 rounded-lg",
         "border-[1.5px] border-[#E2E6ED] dark:border-[#21262D]",
@@ -72,9 +74,10 @@ export const LoginPage = () => {
   const { login } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
+  const urlError = new URLSearchParams(location.search).get("error");
   const from =
     (location.state as { from?: { pathname: string } })?.from?.pathname ||
     ROUTES.DASHBOARD;
@@ -83,26 +86,24 @@ export const LoginPage = () => {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
-  });
+  } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
 
   const onSubmit = async (values: LoginForm) => {
     setServerError(null);
     try {
       await login(values);
       navigate(from, { replace: true });
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message ?? "Login failed. Please try again.";
-      setServerError(msg);
+    } catch (err) {
+      setServerError(parseApiError(err, "Login failed. Please try again."));
     }
   };
 
+  const errorMsg =
+    serverError ??
+    (urlError ? "Google sign-in failed. Please try again." : null);
+
   return (
     <div>
-      {/* Header */}
       <div className="mb-7">
         <h2 className="text-xl font-bold text-[#0F172A] dark:text-[#F0F6FC] tracking-wide mb-1">
           Welcome back
@@ -112,20 +113,10 @@ export const LoginPage = () => {
         </p>
       </div>
 
-      {/* Server error */}
-      {serverError && (
-        <div className="mb-5 flex items-start gap-2.5 rounded-xl bg-[#FFF1F2] dark:bg-coral-500/12 border border-[#FECDD3] dark:border-coral-500/28 p-3.5 text-sm text-[#BE123C] dark:text-[#FDA4AF]">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          {serverError}
-        </div>
-      )}
-
-      {/* Google OAuth */}
       <div className="mb-5">
-        <GoogleOAuthButton label="Sign in with Google" />
+        <GoogleOAuthButton label="Continue with Google" />
       </div>
 
-      {/* Divider */}
       <div className="flex items-center gap-3 mb-5">
         <div className="flex-1 h-px bg-[#E2E6ED] dark:bg-[#21262D]" />
         <span className="text-[11px] text-[#94A3B8] uppercase tracking-widest">
@@ -134,8 +125,14 @@ export const LoginPage = () => {
         <div className="flex-1 h-px bg-[#E2E6ED] dark:bg-[#21262D]" />
       </div>
 
+      {errorMsg && (
+        <div className="mb-5 flex items-start gap-2.5 rounded-xl bg-[#FFF1F2] dark:bg-[rgba(244,63,94,0.12)] border border-[#FECDD3] dark:border-[rgba(244,63,94,0.28)] p-3.5 text-sm text-[#BE123C] dark:text-[#FDA4AF]">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          {errorMsg}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
-        {/* Email */}
         <Field label="Email" error={errors.email?.message}>
           <Input
             type="email"
@@ -147,10 +144,9 @@ export const LoginPage = () => {
           />
         </Field>
 
-        {/* Password */}
         <Field label="Password" error={errors.password?.message}>
           <Input
-            type={showPassword ? "text" : "password"}
+            type={showPwd ? "text" : "password"}
             autoComplete="current-password"
             placeholder="Your password"
             error={!!errors.password}
@@ -158,10 +154,10 @@ export const LoginPage = () => {
             rightElement={
               <button
                 type="button"
-                onClick={() => setShowPassword((v) => !v)}
+                onClick={() => setShowPwd((v) => !v)}
                 className="text-[#94A3B8] hover:text-[#475569] dark:hover:text-[#8B949E] transition-colors"
               >
-                {showPassword ? (
+                {showPwd ? (
                   <EyeOff className="w-4 h-4" />
                 ) : (
                   <Eye className="w-4 h-4" />
@@ -172,10 +168,9 @@ export const LoginPage = () => {
           />
         </Field>
 
-        {/* Forgot password */}
         <div className="flex justify-end -mt-1">
           <Link
-            to="#"
+            to={ROUTES.FORGOT_PASSWORD}
             className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
           >
             Forgot password?

@@ -1,15 +1,34 @@
+/**
+ * store/authStore.ts
+ *
+ * Manages auth state: user, isAuthenticated, isInitializing.
+ *
+ * normalizeUser: ensures user.id and user._id are always plain strings.
+ * Needed because lean() Mongoose objects return _id as ObjectId with no .id getter,
+ * while login response user has { id } but no { _id }.
+ *
+ * initialize: called once on app mount (and by OAuthCallbackPage after token storage).
+ *   GET /auth/me → { success, message, _id, name, email, ... } (user fields at root)
+ *
+ * login: POST /auth/login → { success, message, accessToken, user: { id, name, email, role } }
+ */
+
 import { create } from "zustand";
 import type { User, LoginPayload, RegisterPayload } from "../types/types";
 import { tokenManager } from "../utils/tokenManager";
 import { connectSocket, disconnectSocket } from "../config/socket";
 import api from "../config/axios";
 
+function normalizeUser(raw: Record<string, unknown>): User {
+  if (!raw) return raw as unknown as User;
+  const _id = String(raw._id ?? raw.id ?? "");
+  return { ...(raw as unknown as User), id: _id, _id };
+}
+
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
-  isInitializing: boolean; // true while we check if session is still valid on page load
-
-  // Actions
+  isInitializing: boolean;
   initialize: () => Promise<void>;
   login: (payload: LoginPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
@@ -22,21 +41,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   isInitializing: true,
 
-  /**
-   * Called ONCE on app mount.
-   * Tries to restore the session by hitting /auth/me.
-   * The axios interceptor will silently refresh the token if needed.
-   */
   initialize: async () => {
     try {
-      const { data } = await api.get<{ success: boolean; data: User }>(
-        "/auth/me",
-      );
-      // /auth/me returns the user; the interceptor may have already set a new token
-      set({ user: data.data, isAuthenticated: true });
-      connectSocket(data.data.id);
+      const { data } = await api.get<Record<string, unknown>>("/auth/me");
+      const user = normalizeUser(data);
+      set({ user, isAuthenticated: true });
+      connectSocket(user.id);
     } catch {
-      // Session is dead — user stays logged out, no redirect here (router handles it)
       tokenManager.clear();
       set({ user: null, isAuthenticated: false });
     } finally {
@@ -45,18 +56,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   login: async (payload: LoginPayload) => {
-    const { data } = await api.post<{ accessToken: string; user: User }>(
-      "/auth/login",
-      payload,
-    );
+    const { data } = await api.post<{
+      success: boolean;
+      message: string;
+      accessToken: string;
+      user: Record<string, unknown>;
+    }>("/auth/login", payload);
+
     tokenManager.set(data.accessToken);
-    set({ user: data.user, isAuthenticated: true, isInitializing: false });
-    connectSocket(data.user.id);
+    const user = normalizeUser(data.user);
+    set({ user, isAuthenticated: true, isInitializing: false });
+    connectSocket(user.id);
   },
 
   register: async (payload: RegisterPayload) => {
     await api.post("/auth/register", payload);
-    // Auto-login after register
     await get().login({ email: payload.email, password: payload.password });
   },
 
@@ -70,5 +84,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  setUser: (user: User) => set({ user }),
+  setUser: (user: User) =>
+    set({ user: normalizeUser(user as unknown as Record<string, unknown>) }),
 }));

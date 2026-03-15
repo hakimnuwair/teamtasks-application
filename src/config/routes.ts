@@ -1,10 +1,10 @@
 export const ROUTES = {
   LOGIN: "/login",
   REGISTER: "/register",
+  FORGOT_PASSWORD: "/forgot-password",
   DASHBOARD: "/dashboard",
-  GROUPS: "/groups",
-  GROUP_DETAIL: (id: string) => `/groups/${id}`,
   REMINDERS: "/reminders",
+  GROUPS: "/groups",
   NOTIFICATIONS: "/notifications",
   ACTIVITY: "/activity",
   PROFILE: "/profile",

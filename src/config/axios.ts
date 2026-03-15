@@ -1,3 +1,20 @@
+/**
+ * config/axios.ts
+ *
+ * Centralized Axios instance with:
+ *  1. Auth token injection on every request
+ *  2. Transparent token refresh on 401 (with request queue)
+ *  3. Auth-endpoint guard — never intercepts /login or /auth/refresh-token
+ *  4. Consistent error extraction — parseApiError() reads the
+ *     { success, message, code, errors } shape from every response
+ *
+ * CONSISTENT ERROR SHAPE (from backend):
+ *   { success: false, message: string, code?: string, errors?: [{field, message}] }
+ *
+ * parseApiError(err) always returns a human-readable string.
+ * Use it everywhere instead of manually drilling into err.response.data.message.
+ */
+
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { tokenManager } from "../utils/tokenManager";
 
@@ -47,11 +64,12 @@ api.interceptors.response.use(
     const url = originalRequest.url ?? "";
     const isAuthEndpoint =
       url.includes("/auth/refresh-token") || url.includes("/login");
-    // Only intercept 401s that haven't been retried yet
+
+    // Only intercept 401s that haven't been retried yet and aren't auth endpoints
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
-      !isAuthEndpoint // ← don't intercept auth endpoints
+      !isAuthEndpoint
     ) {
       if (isRefreshing) {
         // Another refresh is already in flight — queue this request
@@ -68,10 +86,12 @@ api.interceptors.response.use(
 
       try {
         // Hit refresh endpoint — browser sends the httpOnly cookie automatically
-        const { data } = await api.post<{ accessToken: string }>(
-          "/auth/refresh-token",
-        );
-        const newToken = data.accessToken;
+        // Support both flat { accessToken } and nested { data: { accessToken } } shapes
+        const { data } = await api.post<{
+          data?: { accessToken: string };
+          accessToken?: string;
+        }>("/auth/refresh-token");
+        const newToken = data.data?.accessToken ?? data.accessToken!;
 
         tokenManager.set(newToken);
         processQueue(null, newToken);
@@ -95,3 +115,62 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+// ─── parseApiError ────────────────────────────────────────────────────────────
+/**
+ * Extract a clean human-readable message from ANY Axios error.
+ *
+ * Priority:
+ *   1. response.data.message        (our consistent backend shape)
+ *   2. response.data.errors[0].message  (validation errors)
+ *   3. error.message                (network / timeout)
+ *   4. fallback string
+ *
+ * Usage:
+ *   catch (err) { setServerError(parseApiError(err)); }
+ */
+export function parseApiError(
+  err: unknown,
+  fallback = "Something went wrong",
+): string {
+  if (!err) return fallback;
+
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as
+      | {
+          message?: string;
+          errors?: { field: string; message: string }[];
+        }
+      | undefined;
+
+    if (data?.message) return data.message;
+    if (data?.errors?.[0]?.message) return data.errors[0].message;
+    if (err.message) return err.message;
+  }
+
+  if (err instanceof Error) return err.message;
+
+  return fallback;
+}
+
+// ─── parseFieldErrors ─────────────────────────────────────────────────────────
+/**
+ * Extract field-level validation errors from an Axios 400 response.
+ * Returns a Record<fieldName, errorMessage> for react-hook-form setError().
+ *
+ * Usage:
+ *   const fieldErrors = parseFieldErrors(err);
+ *   Object.entries(fieldErrors).forEach(([field, message]) =>
+ *     setError(field as keyof FormValues, { message })
+ *   );
+ */
+export function parseFieldErrors(err: unknown): Record<string, string> {
+  if (!axios.isAxiosError(err)) return {};
+  const data = err.response?.data as
+    | {
+        errors?: { field: string; message: string }[];
+      }
+    | undefined;
+  if (!data?.errors) return {};
+  return Object.fromEntries(data.errors.map((e) => [e.field, e.message]));
+}

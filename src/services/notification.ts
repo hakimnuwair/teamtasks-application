@@ -1,33 +1,44 @@
 /**
- * services/notification.ts — Notification API calls
+ * services/notification.ts
+ *
+ * GET /notifications → { success, message, notifications: [], total, unreadCount, pagination }
+ *   (notificationService returns { notifications, total, unreadCount, pagination }
+ *    which gets Object.assign'd flat into the response)
+ * PATCH /notifications/read     → { success, message, modifiedCount }
+ * PATCH /notifications/read-all → { success, message, modifiedCount }
+ * DELETE /notifications/:id     → { success, message }
  */
 import api from "../config/axios";
-import type {
-  Notification,
-  PaginatedResponse,
-  ApiResponse,
-} from "../types/types";
+import type { Notification, Pagination } from "../types/types";
 
 export interface GetNotificationsParams {
   page?: number;
   limit?: number;
   unreadOnly?: boolean;
 }
-
 export interface GetNotificationsResult {
   notifications: Notification[];
   unreadCount: number;
-  pagination: PaginatedResponse<Notification>["pagination"];
+  pagination: Pagination | undefined;
+}
+
+interface NotificationsResponse {
+  success: boolean;
+  message: string;
+  notifications: Notification[];
+  total: number;
+  unreadCount: number;
+  pagination: Pagination;
 }
 
 export const getNotifications = async (
   params: GetNotificationsParams = {},
 ): Promise<GetNotificationsResult> => {
-  const { data } = await api.get<
-    PaginatedResponse<Notification> & { unreadCount: number }
-  >("/notifications", { params });
+  const { data } = await api.get<NotificationsResponse>("/notifications", {
+    params,
+  });
   return {
-    notifications: data.notifications ?? data.data ?? [],
+    notifications: data.notifications ?? [],
     unreadCount: data.unreadCount ?? 0,
     pagination: data.pagination,
   };
