@@ -1,13 +1,15 @@
+/**
+ * hooks/useReminders.ts
+ *
+ * Reminders data hook. Re-fetches after every mutation.
+ * create() now accepts assignedUsers[] for group reminder assignment.
+ */
 import { useEffect, useCallback } from "react";
 import { useReminderStore } from "../store/reminderStore";
 import * as reminderService from "../services/reminder";
 import toast from "react-hot-toast";
+import type { CreateReminderPayload } from "../types/types";
 
-/**
- * Reminders data hook.
- * Reads filters from store, fetches from API, writes back to store.
- * Re-fetches after every mutation to get fully-populated documents.
- */
 export const useReminders = () => {
   const {
     reminders,
@@ -28,9 +30,7 @@ export const useReminders = () => {
       const result = await reminderService.getReminders(filters);
       setReminders(result.reminders, result.pagination);
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to load reminders";
-      setError(msg);
+      setError(err instanceof Error ? err.message : "Failed to load reminders");
     } finally {
       setLoading(false);
     }
@@ -43,10 +43,12 @@ export const useReminders = () => {
   const complete = async (id: string) => {
     try {
       await reminderService.completeReminder(id);
-      toast.success("Reminder marked complete!");
+      toast.success("Marked complete!");
       await fetchReminders();
-    } catch {
-      toast.error("Could not complete reminder");
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Could not complete reminder";
+      toast.error(msg);
     }
   };
 
@@ -60,9 +62,7 @@ export const useReminders = () => {
     }
   };
 
-  const create = async (
-    payload: Parameters<typeof reminderService.createReminder>[0],
-  ) => {
+  const create = async (payload: CreateReminderPayload) => {
     const reminder = await reminderService.createReminder(payload);
     await fetchReminders();
     return reminder;

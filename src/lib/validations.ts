@@ -137,3 +137,13 @@ export const registerSchema = z
   });
 
 export type RegisterFormData = z.infer<typeof registerSchema>;
+
+// ─── REMINDER (with assignedUsers) ───────────────────────────────────────────
+
+export const createReminderWithAssignmentSchema = createReminderSchema.extend({
+  assignedUsers: z.array(z.string()).optional(),
+});
+
+export type CreateReminderWithAssignmentData = z.infer<
+  typeof createReminderWithAssignmentSchema
+>;

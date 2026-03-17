@@ -1,11 +1,11 @@
 /**
  * pages/notifications/Notifications.tsx
  *
- * GROUP_INVITE notifications show Accept / Decline buttons.
- * The invitationId lives in notification.metadata.invitationId
- * (set by the backend when creating the notification in invitationService.js).
- *
- * All invitation API calls go through services/invitation.ts.
+ * Two sections:
+ *   1. Pending Invitations banner — always shown at top when invitations exist.
+ *      Fetched from GET /invitations/me. Accept/Decline responds via invitationService.
+ *   2. Notifications list — GROUP_INVITE rows also show Accept/Decline using
+ *      invitationId from notification.metadata.invitationId (stored as string by backend).
  */
 
 import { useEffect, useState } from "react";
@@ -18,13 +18,18 @@ import {
   Info,
   Check,
   X,
+  Mail,
 } from "lucide-react";
 import { cn } from "../../utils/cn";
-import { Button, EmptyState, Card } from "../../components/ui";
+import { Button, EmptyState, Card, Avatar } from "../../components/ui";
 import { useNotifications } from "../../hooks/useNotifications";
 import * as invitationService from "../../services/invitation";
 import toast from "react-hot-toast";
-import type { Notification, NotificationType } from "../../types/types";
+import type {
+  Notification,
+  NotificationType,
+  GroupInvitation,
+} from "../../types/types";
 
 // ── Type config ───────────────────────────────────────────────────────────────
 
@@ -54,8 +59,6 @@ const TYPE_CFG: Record<
   },
 };
 
-// ── Relative time ─────────────────────────────────────────────────────────────
-
 function relativeTime(date: string) {
   const diff = (Date.now() - new Date(date).getTime()) / 1000;
   if (diff < 60) return "just now";
@@ -63,8 +66,6 @@ function relativeTime(date: string) {
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
-
-// ── Inline spinner ────────────────────────────────────────────────────────────
 
 function Spin() {
   return (
@@ -90,7 +91,7 @@ function Spin() {
   );
 }
 
-// ── Invite action buttons ─────────────────────────────────────────────────────
+// ── Inline accept / decline buttons ──────────────────────────────────────────
 
 function InviteActions({
   invitationId,
@@ -108,9 +109,9 @@ function InviteActions({
       toast.success(accept ? "You joined the group!" : "Invitation declined");
       onDone(accept);
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "Could not respond to invitation";
-      toast.error(msg);
+      toast.error(
+        err instanceof Error ? err.message : "Could not respond to invitation",
+      );
     } finally {
       setBusy(null);
     }
@@ -127,8 +128,7 @@ function InviteActions({
         className={cn(
           "flex items-center gap-1.5 h-7 px-3 rounded-lg text-[11px] font-medium",
           "bg-gradient-to-r from-teal-500 to-teal-600 text-white",
-          "shadow-sm shadow-[rgba(20,184,166,0.28)]",
-          "hover:from-teal-400 hover:to-teal-500",
+          "shadow-sm shadow-[rgba(20,184,166,0.28)] hover:from-teal-400 hover:to-teal-500",
           "active:scale-[0.97] transition-all duration-[250ms]",
           busy !== null && "opacity-60 pointer-events-none",
         )}
@@ -158,6 +158,110 @@ function InviteActions({
   );
 }
 
+// ── Pending invitation card ───────────────────────────────────────────────────
+
+function InvitationCard({
+  inv,
+  onRespond,
+}: {
+  inv: GroupInvitation;
+  onRespond: (id: string, accepted: boolean) => void;
+}) {
+  const [busy, setBusy] = useState<"accept" | "decline" | null>(null);
+
+  const handle = async (accept: boolean) => {
+    setBusy(accept ? "accept" : "decline");
+    try {
+      await invitationService.respondToInvitation(inv._id, accept);
+      toast.success(
+        accept ? `Joined ${inv.groupId.name}!` : "Invitation declined",
+      );
+      onRespond(inv._id, accept);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Could not respond");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-4 p-4 rounded-xl border",
+        "bg-white dark:bg-[#161B22] border-[#C7D2FE] dark:border-[rgba(99,102,241,0.25)]",
+        "shadow-[0_2px_8px_rgba(79,70,229,0.08)] dark:shadow-[0_2px_8px_rgba(99,102,241,0.12)]",
+      )}
+    >
+      {/* Group avatar */}
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0 bg-gradient-to-br from-indigo-600 to-teal-500 shadow-[0_4px_10px_rgba(79,70,229,0.25)]">
+        {inv.groupId.name.slice(0, 2).toUpperCase()}
+      </div>
+
+      <div className="flex-1 min-w-0 space-y-2">
+        <div>
+          <p className="text-sm font-semibold text-[#0F172A] dark:text-[#F0F6FC]">
+            {inv.groupId.name}
+          </p>
+          {inv.groupId.description && (
+            <p className="text-xs text-[#94A3B8] line-clamp-1">
+              {inv.groupId.description}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-[#94A3B8]">
+          <Avatar name={inv.invitedBy.name} size="xs" />
+          <span>
+            Invited by{" "}
+            <span className="font-medium text-[#475569] dark:text-[#8B949E]">
+              {inv.invitedBy.name}
+            </span>
+          </span>
+          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.14)] text-[#4338CA] dark:text-[#A5B4FC]">
+            {inv.role}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handle(true)}
+            disabled={busy !== null}
+            className={cn(
+              "flex items-center gap-1.5 h-8 px-4 rounded-lg text-xs font-semibold",
+              "bg-gradient-to-r from-indigo-600 to-teal-500 text-white",
+              "shadow-sm shadow-indigo-500/25 hover:brightness-110",
+              "active:scale-[0.97] transition-all duration-[250ms]",
+              busy !== null && "opacity-60 pointer-events-none",
+            )}
+          >
+            {busy === "accept" ? <Spin /> : <Check className="w-3.5 h-3.5" />}
+            Accept
+          </button>
+          <button
+            onClick={() => handle(false)}
+            disabled={busy !== null}
+            className={cn(
+              "flex items-center gap-1.5 h-8 px-4 rounded-lg text-xs font-semibold",
+              "border border-[#E2E6ED] dark:border-[#21262D]",
+              "text-[#475569] dark:text-[#8B949E] bg-white dark:bg-[#161B22]",
+              "hover:border-[#C8CDD8] dark:hover:border-[#30363D]",
+              "active:scale-[0.97] transition-all duration-[250ms]",
+              busy !== null && "opacity-60 pointer-events-none",
+            )}
+          >
+            {busy === "decline" ? <Spin /> : <X className="w-3.5 h-3.5" />}
+            Decline
+          </button>
+        </div>
+      </div>
+
+      <p className="text-[10px] text-[#94A3B8] shrink-0 pt-0.5">
+        {relativeTime(inv.createdAt)}
+      </p>
+    </div>
+  );
+}
+
 // ── Notification row ──────────────────────────────────────────────────────────
 
 function NotificationRow({
@@ -170,19 +274,15 @@ function NotificationRow({
   const cfg = TYPE_CFG[n.type] ?? TYPE_CFG.SYSTEM;
   const Icon = cfg.icon;
   const isInvite = n.type === "GROUP_INVITE";
-
-  // Backend stores invitationId in notification.metadata.invitationId
   const invitationId = isInvite
     ? ((n.metadata?.invitationId as string | undefined) ?? "")
     : "";
 
-  const handleClick = () => {
-    if (!isInvite && !n.isRead) onMarkRead(n._id);
-  };
-
   return (
     <div
-      onClick={handleClick}
+      onClick={() => {
+        if (!isInvite && !n.isRead) onMarkRead(n._id);
+      }}
       className={cn(
         "flex items-start gap-4 p-4 rounded-xl border transition-all duration-[250ms]",
         n.isRead
@@ -195,7 +295,6 @@ function NotificationRow({
             ],
       )}
     >
-      {/* Type icon */}
       <div
         className={cn(
           "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5",
@@ -207,7 +306,6 @@ function NotificationRow({
       </div>
 
       <div className="flex-1 min-w-0 space-y-1.5">
-        {/* Message */}
         <p
           className={cn(
             "text-sm leading-snug",
@@ -219,7 +317,6 @@ function NotificationRow({
           {n.message}
         </p>
 
-        {/* Linked context */}
         {(n.reminderId || n.groupId) && (
           <p className="text-xs text-[#94A3B8]">
             {n.reminderId && (
@@ -239,7 +336,7 @@ function NotificationRow({
           </p>
         )}
 
-        {/* Accept / Decline — only for unread GROUP_INVITE with a valid invitationId */}
+        {/* Accept/Decline — only for unread GROUP_INVITE with a valid invitationId */}
         {isInvite && !n.isRead && invitationId && (
           <InviteActions
             invitationId={invitationId}
@@ -250,15 +347,12 @@ function NotificationRow({
         <p className="text-xs text-[#94A3B8]">{relativeTime(n.createdAt)}</p>
       </div>
 
-      {/* Unread dot */}
       {!n.isRead && (
         <div className="w-2 h-2 rounded-full bg-indigo-600 dark:bg-indigo-400 shrink-0 mt-1.5 shadow-[0_0_6px_rgba(79,70,229,0.50)]" />
       )}
     </div>
   );
 }
-
-// ── Skeleton ──────────────────────────────────────────────────────────────────
 
 function NotifSkeleton() {
   return (
@@ -277,6 +371,8 @@ function NotifSkeleton() {
 export const NotificationsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [invitations, setInvitations] = useState<GroupInvitation[]>([]);
+  const [invLoading, setInvLoading] = useState(true);
 
   const {
     notifications,
@@ -289,7 +385,18 @@ export const NotificationsPage = () => {
   useEffect(() => {
     setIsLoading(true);
     fetchNotifications().finally(() => setIsLoading(false));
+
+    setInvLoading(true);
+    invitationService
+      .getMyInvitations()
+      .then((data) => setInvitations(data))
+      .catch(() => {})
+      .finally(() => setInvLoading(false));
   }, [fetchNotifications]);
+
+  const handleInvitationRespond = (id: string, _accepted: boolean) => {
+    setInvitations((prev) => prev.filter((i) => i._id !== id));
+  };
 
   const displayed =
     filter === "unread"
@@ -320,7 +427,44 @@ export const NotificationsPage = () => {
         )}
       </div>
 
-      {/* Filter tabs */}
+      {/* ── Pending Invitations section ───────────────────────────────────── */}
+      {!invLoading && invitations.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Mail className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <h3 className="text-sm font-semibold text-[#0F172A] dark:text-[#F0F6FC] tracking-wide">
+              Pending Invitations
+            </h3>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-600 text-white shadow-[0_0_8px_rgba(79,70,229,0.40)]">
+              {invitations.length}
+            </span>
+          </div>
+          <div className="space-y-2.5">
+            {invitations.map((inv) => (
+              <InvitationCard
+                key={inv._id}
+                inv={inv}
+                onRespond={handleInvitationRespond}
+              />
+            ))}
+          </div>
+          <div className="h-px bg-gradient-to-r from-transparent via-[#C8CDD8] dark:via-[#30363D] to-transparent" />
+        </div>
+      )}
+
+      {/* Invitations skeleton */}
+      {invLoading && (
+        <div className="space-y-2.5">
+          {[1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-28 rounded-xl animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]"
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ── Filter tabs ───────────────────────────────────────────────────── */}
       <div className="flex items-center p-1 gap-0.5 rounded-xl w-fit bg-white dark:bg-[#161B22] border border-[#E2E6ED] dark:border-[#21262D] shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
         {(["all", "unread"] as const).map((f) => (
           <button
@@ -350,7 +494,7 @@ export const NotificationsPage = () => {
         ))}
       </div>
 
-      {/* Content */}
+      {/* ── Notifications list ────────────────────────────────────────────── */}
       {isLoading ? (
         <div className="space-y-2.5">
           {Array.from({ length: 6 }).map((_, i) => (

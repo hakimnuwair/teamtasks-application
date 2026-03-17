@@ -32,7 +32,7 @@ export interface ApiError {
 
 export interface User {
   id: string;
-  _id?: string; // some endpoints return _id
+  _id?: string;
   name: string;
   email: string;
   role: "USER" | "ADMIN";
@@ -56,15 +56,10 @@ export interface AuthResponse {
 
 // ─── GROUP ────────────────────────────────────────────────────────────────────
 
-// Backend only has ADMIN and MEMBER — no OWNER role
 export type GroupRole = "ADMIN" | "MEMBER";
 
 export interface GroupMember {
-  userId: {
-    _id: string;
-    name: string;
-    email: string;
-  };
+  userId: { _id: string; name: string; email: string };
   role: GroupRole;
   joinedAt: string;
 }
@@ -85,7 +80,6 @@ export interface CreateGroupPayload {
   name: string;
   description?: string;
 }
-
 export interface InviteMemberPayload {
   email: string;
   role?: GroupRole;
@@ -97,6 +91,12 @@ export type ReminderStatus = "PENDING" | "COMPLETED" | "OVERDUE";
 export type Priority = "LOW" | "MEDIUM" | "HIGH";
 export type Recurrence = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
 
+// Per-user completion entry — stored in userCompletions[]
+export interface UserCompletion {
+  userId: { _id: string; name: string; email: string } | string;
+  completedAt: string;
+}
+
 export interface Reminder {
   _id: string;
   title: string;
@@ -106,6 +106,9 @@ export interface Reminder {
   groupId: { _id: string; name: string } | null;
   createdBy: { _id: string; name: string; email: string };
   assignedUsers: { _id: string; name: string; email: string }[];
+  // Per-user completions — present on group reminders
+  userCompletions: UserCompletion[];
+  // Top-level status — COMPLETED only when ALL assigned users complete
   status: ReminderStatus;
   priority: Priority;
   completedAt: string | null;
@@ -119,13 +122,12 @@ export interface CreateReminderPayload {
   dueDateTime: string;
   recurrence?: Recurrence;
   groupId?: string | null;
-  assignedUsers?: string[];
+  assignedUsers?: string[]; // [] or omitted = all group members
   priority?: Priority;
 }
 
 // ─── NOTIFICATION ─────────────────────────────────────────────────────────────
 
-// Matches backend Notification.type enum exactly
 export type NotificationType =
   | "REMINDER_DUE"
   | "GROUP_INVITE"
@@ -141,14 +143,12 @@ export interface Notification {
   message: string;
   isRead: boolean;
   readAt: string | null;
-  // Backend stores arbitrary data here — e.g. { invitationId } for GROUP_INVITE
   metadata: Record<string, unknown>;
   createdAt: string;
 }
 
 // ─── ACTIVITY LOG ─────────────────────────────────────────────────────────────
 
-// Matches backend ActivityLog.action enum exactly
 export type ActivityAction =
   | "GROUP_CREATED"
   | "GROUP_UPDATED"
@@ -156,6 +156,10 @@ export type ActivityAction =
   | "GROUP_MEMBER_ADDED"
   | "GROUP_MEMBER_REMOVED"
   | "GROUP_ROLE_CHANGED"
+  | "GROUP_INVITATION_SENT"
+  | "GROUP_INVITATION_ACCEPTED"
+  | "GROUP_INVITATION_DECLINED"
+  | "GROUP_INVITATION_CANCELLED"
   | "REMINDER_CREATED"
   | "REMINDER_UPDATED"
   | "REMINDER_DELETED"
@@ -168,30 +172,23 @@ export interface ActivityLog {
   groupId: { _id: string; name: string } | null;
   reminderId: { _id: string; title: string } | null;
   action: ActivityAction;
-  metadata: Record<string, unknown>; // backend field is "metadata" not "details"
+  metadata: Record<string, unknown>;
   createdAt: string;
 }
 
 // ─── GROUP INVITATIONS ────────────────────────────────────────────────────────
 
-// Backend status enum — note: CANCELLED exists in DB but getMyInvitations only
-// returns PENDING ones, and respondToInvitation sets ACCEPTED | DECLINED.
 export type InvitationStatus =
   | "PENDING"
   | "ACCEPTED"
   | "DECLINED"
   | "CANCELLED";
 
-/**
- * Shape returned by GET /invitations/me
- * invitedBy is populated; invitedUser is NOT populated (ObjectId only).
- * groupId is populated with name, description, members.
- */
 export interface GroupInvitation {
   _id: string;
   groupId: { _id: string; name: string; description?: string };
   invitedBy: { _id: string; name: string; email: string };
-  invitedUser: string; // raw ObjectId — not populated
+  invitedUser: string;
   role: GroupRole;
   status: InvitationStatus;
   expiresAt: string | null;

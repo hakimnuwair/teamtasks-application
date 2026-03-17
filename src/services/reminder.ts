@@ -1,13 +1,15 @@
 /**
  * services/reminder.ts
  *
- * GET /reminders          → { success, message, reminders: [], pagination: {} }
+ * GET /reminders           → { success, message, reminders: [], pagination: {} }
  * GET /groups/:id/reminders → same shape
- * GET /reminders/:id      → { success, message, ...reminderFields }
- * POST /reminders         → { success, message, ...reminderFields }  (201)
- * PATCH /reminders/:id    → { success, message, ...reminderFields }
+ * GET /reminders/:id       → { success, message, ...reminderFields }
+ * POST /reminders          → { success, message, ...reminderFields }
+ * PATCH /reminders/:id     → { success, message, ...reminderFields }
  * POST /reminders/:id/complete → { success, message, ...reminderFields }
- * DELETE /reminders/:id   → { success, message }
+ * DELETE /reminders/:id    → { success, message }
+ *
+ * createReminder accepts assignedUsers[] for group reminders.
  */
 import api from "../config/axios";
 import type {
