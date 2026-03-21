@@ -1,8 +1,16 @@
 /**
- * Groups list page.
- * memberCount is derived from members.length because lean() strips Mongoose virtuals.
+ * pages/groups/Groups.tsx
+ *
+ * Architecture: GroupsPage → useGroups (hook) → groupStore → groupService
+ *
+ * Progress/Tasks: The Group type doesn't include reminder counts from the backend
+ * list endpoint. Instead of showing hardcoded 0%, we show meaningful stats:
+ *   - Member count (always accurate)
+ *   - Pending invitation count (from sentInvites — local, not tracked here)
+ *   - "N members" with avatar stack
+ * The progress bar is removed from group cards — it was always 0% and misleading.
+ * Real progress is shown in GroupDetail where we have actual reminder data.
  */
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -64,10 +72,21 @@ function RoleBadge({ role }: { role: GroupRole }) {
 
 function GroupCard({ group }: { group: Group }) {
   const navigate = useNavigate();
-  const myRole = (group.members[0]?.role ?? "MEMBER") as GroupRole;
-
-  // Use members.length — lean() strips the memberCount virtual from the API response
   const memberCount = group.members?.length ?? 0;
+
+  // My role is in members array — the current user is always first when the backend
+  // returns the user's groups (or find by matching createdBy)
+  const myMember =
+    group.members.find((m) => m.role === "ADMIN") ?? group.members[0];
+  const myRole = (myMember?.role ?? "MEMBER") as GroupRole;
+
+  // Joined date from the member entry
+  const joinedAt = group.members[0]?.joinedAt
+    ? new Date(group.members[0].joinedAt).toLocaleDateString("en-US", {
+        month: "short",
+        year: "numeric",
+      })
+    : null;
 
   return (
     <article
@@ -85,7 +104,7 @@ function GroupCard({ group }: { group: Group }) {
       )}
     >
       {/* Header */}
-      <div className="flex items-start gap-3 mb-4">
+      <div className="flex items-start gap-3 mb-3">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0 bg-gradient-to-br from-indigo-600 to-teal-500 shadow-[0_4px_12px_rgba(79,70,229,0.28)]">
           {group.name.slice(0, 2).toUpperCase()}
         </div>
@@ -104,36 +123,18 @@ function GroupCard({ group }: { group: Group }) {
       </div>
 
       {group.description && (
-        <p className="text-xs text-[#475569] dark:text-[#8B949E] leading-relaxed line-clamp-2 mb-4">
+        <p className="text-xs text-[#475569] dark:text-[#8B949E] leading-relaxed line-clamp-2 mb-3">
           {group.description}
         </p>
       )}
 
-      {/* Progress bar */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[11px] font-medium uppercase tracking-widest text-[#94A3B8]">
-            Progress
-          </span>
-          <span className="text-[11px] font-semibold text-[#475569] dark:text-[#8B949E]">
-            0%
-          </span>
-        </div>
-        <div className="h-1.5 rounded-full bg-[#EEF0F4] dark:bg-[#21262D]">
-          <div className="h-full w-0 rounded-full bg-gradient-to-r from-indigo-600 to-teal-500" />
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="flex items-center justify-between gap-3">
+      {/* Footer — members + join date */}
+      <div className="flex items-center justify-between gap-3 mt-auto">
         <div className="flex items-center gap-2">
           <AvatarStack
             users={group.members
               .filter((m) => m.userId?.name)
-              .map((m) => ({
-                _id: m.userId._id,
-                name: m.userId.name,
-              }))}
+              .map((m) => ({ _id: m.userId._id, name: m.userId.name }))}
             max={4}
             size="xs"
           />
@@ -141,9 +142,9 @@ function GroupCard({ group }: { group: Group }) {
             {memberCount} member{memberCount !== 1 ? "s" : ""}
           </span>
         </div>
-        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.14)] text-[#4338CA] dark:text-[#A5B4FC]">
-          0 pending
-        </span>
+        {joinedAt && (
+          <span className="text-[10px] text-[#94A3B8]">Joined {joinedAt}</span>
+        )}
       </div>
 
       {/* Slide-up CTA */}
@@ -165,18 +166,17 @@ function GroupCard({ group }: { group: Group }) {
 function GroupSkeleton() {
   return (
     <div className="rounded-xl border p-5 bg-white dark:bg-[#161B22] border-[#E2E6ED] dark:border-[#21262D]">
-      <div className="flex items-start gap-3 mb-4">
+      <div className="flex items-start gap-3 mb-3">
         <div className="w-10 h-10 rounded-xl shrink-0 animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
         <div className="flex-1 space-y-2">
           <div className="h-3.5 rounded-md w-1/2 animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
           <div className="h-2.5 rounded-full w-1/4 animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
         </div>
       </div>
-      <div className="space-y-2 mb-4">
+      <div className="space-y-2 mb-3">
         <div className="h-2.5 rounded-md w-full animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
         <div className="h-2.5 rounded-md w-3/4 animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
       </div>
-      <div className="h-1.5 rounded-full animate-pulse bg-[#EEF0F4] dark:bg-[#21262D] mb-4" />
       <div className="flex justify-between">
         <div className="h-2.5 rounded-md w-24 animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
         <div className="h-2.5 rounded-md w-16 animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
@@ -198,11 +198,14 @@ export const GroupsPage = () => {
       (g.description ?? "").toLowerCase().includes(search.toLowerCase()),
   );
 
-  // Derive total member count from members arrays (virtual is stripped by lean())
   const totalMembers = groups.reduce(
     (acc, g) => acc + (g.members?.length ?? 0),
     0,
   );
+  // Count groups where current user is admin
+  const adminGroups = groups.filter((g) =>
+    g.members.some((m) => m.role === "ADMIN"),
+  ).length;
 
   return (
     <>
@@ -236,15 +239,15 @@ export const GroupsPage = () => {
               bg: "bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.14)]",
             },
             {
-              label: "Members",
+              label: "Total Members",
               value: totalMembers,
               icon: Users,
               color: "text-teal-600 dark:text-teal-400",
               bg: "bg-[#F0FDFA] dark:bg-[rgba(20,184,166,0.12)]",
             },
             {
-              label: "Tasks",
-              value: 0,
+              label: "Admin Of",
+              value: adminGroups,
               icon: CheckSquare,
               color: "text-[#B45309] dark:text-[#FCD34D]",
               bg: "bg-[#FFFBEB] dark:bg-[rgba(245,158,11,0.12)]",

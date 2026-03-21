@@ -1,24 +1,25 @@
 /**
  * components/modal/CreateReminderModal.tsx
  *
- * Slide-in modal for creating a reminder.
+ * Architecture:
+ *   CreateReminderModal → useReminders (hook) → reminderStore → reminderService
+ *   CreateReminderModal → useGroups    (hook) → groupStore   → groupService
  *
- * When a group is selected two assignment modes appear:
- *   "Everyone" — assignedUsers is omitted (backend resolves to all members).
- *   "Specific"  — user picks individual members; their IDs are sent in assignedUsers[].
+ * Groups are loaded via useGroups hook (lazy: skips fetch if store already populated).
+ * Member list for "Specific" assignment uses useGroups().getGroupById() — fetched
+ * once when groupId changes and cached in local state (not the global store).
  *
- * Per-user completion: each assigned user tracks their own completion independently.
- * The reminder's top-level status becomes COMPLETED only when ALL complete.
+ * Props:
+ *   defaultGroupId — pre-selects this group when the modal opens (e.g. from GroupDetail).
+ *   onCreated      — called after successful creation (e.g. to re-fetch parent list).
  */
-
 import { useState, useEffect } from "react";
 import { SlideModal } from "./SlideModal";
 import { Button, Field, Input, Avatar } from "../ui";
 import { cn } from "../../utils/cn";
 import { useReminders } from "../../hooks/useReminders";
-import { useGroupStore } from "../../store/groupStore";
+import { useGroups } from "../../hooks/useGroups";
 import { parseForm, createReminderSchema } from "../../lib/validations";
-import * as groupService from "../../services/group";
 import toast from "react-hot-toast";
 import type { Priority, Recurrence, Group } from "../../types/types";
 import { Users, User } from "lucide-react";
@@ -27,6 +28,8 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   defaultGroupId?: string;
+  /** Called after reminder created — parent can re-fetch its own list */
+  onCreated?: () => void;
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -71,8 +74,6 @@ const RECURRENCES: { value: Recurrence; label: string }[] = [
   { value: "MONTHLY", label: "Monthly" },
 ];
 
-// ── Form state ────────────────────────────────────────────────────────────────
-
 const INIT = {
   title: "",
   description: "",
@@ -91,6 +92,7 @@ export function CreateReminderModal({
   isOpen,
   onClose,
   defaultGroupId,
+  onCreated,
 }: Props) {
   const [form, setForm] = useState({ ...INIT, groupId: defaultGroupId ?? "" });
   const [errors, setErrors] = useState<FormErrors>({});
@@ -98,18 +100,35 @@ export function CreateReminderModal({
   const [groupDetail, setGroupDetail] = useState<Group | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
 
+  // Hook-first: never call services directly from the component
   const { create } = useReminders();
-  const { groups } = useGroupStore();
+  const { groups, getGroupById } = useGroups(); // lazy: fetches if store empty, skips if loaded
 
-  // When groupId changes, fetch group members for the picker
+  // Reset & sync defaultGroupId every time the modal opens.
+  // useState only runs once on mount, so without this the groupId
+  // would stay stale if the modal is re-opened with a different defaultGroupId.
+  useEffect(() => {
+    if (isOpen) {
+      setForm((f) => ({ ...INIT, groupId: defaultGroupId ?? f.groupId }));
+      setErrors({});
+      setSelectedUsers([]);
+      if (defaultGroupId) {
+        getGroupById(defaultGroupId)
+          .then((g) => setGroupDetail(g))
+          .catch(() => setGroupDetail(null));
+      }
+    }
+  }, [isOpen, defaultGroupId]);
+
+  // When groupId changes, fetch member list for the Specific picker.
+  // This is a one-time lookup not stored globally — local state is correct here.
   useEffect(() => {
     if (!form.groupId) {
       setGroupDetail(null);
       setSelectedUsers([]);
       return;
     }
-    groupService
-      .getGroupById(form.groupId)
+    getGroupById(form.groupId)
       .then((g) => setGroupDetail(g))
       .catch(() => setGroupDetail(null));
   }, [form.groupId]);
@@ -117,13 +136,6 @@ export function CreateReminderModal({
   const setField = <K extends keyof typeof INIT>(key: K, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
-  };
-
-  const reset = () => {
-    setForm({ ...INIT, groupId: defaultGroupId ?? "" });
-    setErrors({});
-    setSelectedUsers([]);
-    setGroupDetail(null);
   };
 
   const toggleUser = (userId: string) => {
@@ -135,12 +147,10 @@ export function CreateReminderModal({
     setErrors((e) => ({ ...e, assignedUsers: undefined }));
   };
 
-  // ── Shared input className ──────────────────────────────────────────────────
   const inputCls = (hasError?: boolean) =>
     cn(
       "w-full h-11 px-3.5 text-sm rounded-lg",
-      "bg-white dark:bg-[#0D1117]",
-      "text-[#0F172A] dark:text-[#F0F6FC] placeholder:text-[#94A3B8]",
+      "bg-white dark:bg-[#0D1117] text-[#0F172A] dark:text-[#F0F6FC] placeholder:text-[#94A3B8]",
       "border-[1.5px] focus:outline-none transition-all duration-[250ms]",
       "hover:border-[#C8CDD8] dark:hover:border-[#30363D]",
       hasError
@@ -148,7 +158,6 @@ export function CreateReminderModal({
         : "border-[#E2E6ED] dark:border-[#21262D] focus:border-indigo-600 dark:focus:border-[#818CF8] focus:shadow-[0_0_0_3px_rgba(79,70,229,0.15)]",
     );
 
-  // ── Submit ──────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     const { data, errors: zodErrors } = parseForm(createReminderSchema, {
       title: form.title,
@@ -164,7 +173,6 @@ export function CreateReminderModal({
       return;
     }
 
-    // Validate specific assignment
     if (
       form.groupId &&
       form.assignMode === "specific" &&
@@ -183,15 +191,13 @@ export function CreateReminderModal({
         priority: data.priority,
         recurrence: data.recurrence,
         groupId: data.groupId,
-        // "everyone" → omit assignedUsers (backend assigns all members)
-        // "specific" → pass selected IDs
         assignedUsers:
           form.groupId && form.assignMode === "specific"
             ? selectedUsers
             : undefined,
       });
       toast.success("Reminder created!");
-      reset();
+      onCreated?.();
       onClose();
     } catch {
       toast.error("Failed to create reminder");
@@ -201,7 +207,6 @@ export function CreateReminderModal({
   };
 
   const handleClose = () => {
-    reset();
     onClose();
   };
 
@@ -214,7 +219,6 @@ export function CreateReminderModal({
       title="New Reminder"
       subtitle="Set a task or deadline for yourself or your team"
     >
-      {/* Title */}
       <Field label="Title" error={errors.title} required>
         <Input
           placeholder="What needs to be done?"
@@ -225,7 +229,6 @@ export function CreateReminderModal({
         />
       </Field>
 
-      {/* Description */}
       <Field label="Description">
         <textarea
           placeholder="Add more details (optional)..."
@@ -234,18 +237,14 @@ export function CreateReminderModal({
           rows={3}
           className={cn(
             "w-full px-3.5 py-3 text-sm rounded-lg resize-none",
-            "bg-white dark:bg-[#0D1117]",
-            "text-[#0F172A] dark:text-[#F0F6FC] placeholder:text-[#94A3B8]",
+            "bg-white dark:bg-[#0D1117] text-[#0F172A] dark:text-[#F0F6FC] placeholder:text-[#94A3B8]",
             "border-[1.5px] border-[#E2E6ED] dark:border-[#21262D]",
-            "focus:outline-none focus:border-indigo-600 dark:focus:border-[#818CF8]",
-            "focus:shadow-[0_0_0_3px_rgba(79,70,229,0.15)]",
-            "hover:border-[#C8CDD8] dark:hover:border-[#30363D]",
-            "transition-all duration-[250ms]",
+            "focus:outline-none focus:border-indigo-600 dark:focus:border-[#818CF8] focus:shadow-[0_0_0_3px_rgba(79,70,229,0.15)]",
+            "hover:border-[#C8CDD8] dark:hover:border-[#30363D] transition-all duration-[250ms]",
           )}
         />
       </Field>
 
-      {/* Due date & time */}
       <Field label="Due Date & Time" error={errors.dueDateTime} required>
         <input
           type="datetime-local"
@@ -258,7 +257,6 @@ export function CreateReminderModal({
         />
       </Field>
 
-      {/* Priority */}
       <Field label="Priority">
         <div className="grid grid-cols-3 gap-2">
           {PRIORITIES.map(({ value, label, dot, activeBg, activeText }) => (
@@ -267,8 +265,7 @@ export function CreateReminderModal({
               type="button"
               onClick={() => setField("priority", value)}
               className={cn(
-                "flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border text-xs font-medium",
-                "transition-all duration-[250ms]",
+                "flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border text-xs font-medium transition-all duration-[250ms]",
                 form.priority === value
                   ? [activeBg, activeText, "shadow-sm"]
                   : "border-[#E2E6ED] dark:border-[#21262D] text-[#475569] dark:text-[#8B949E] hover:border-[#C8CDD8] dark:hover:border-[#30363D] bg-white dark:bg-[#161B22]",
@@ -281,7 +278,6 @@ export function CreateReminderModal({
         </div>
       </Field>
 
-      {/* Recurrence */}
       <Field label="Repeat">
         <div className="grid grid-cols-4 gap-2">
           {RECURRENCES.map(({ value, label }) => (
@@ -302,7 +298,6 @@ export function CreateReminderModal({
         </div>
       </Field>
 
-      {/* Group selector */}
       <Field label="Group" error={errors.groupId}>
         <select
           value={form.groupId}
@@ -325,32 +320,32 @@ export function CreateReminderModal({
         </select>
       </Field>
 
-      {/* Assignment — only shown when a group is selected */}
+      {/* Assignment — only when a group is selected */}
       {form.groupId && (
         <div className="space-y-3">
-          {/* Divider */}
           <div className="h-px bg-[#E2E6ED] dark:bg-[#21262D]" />
 
-          {/* Mode toggle */}
           <div>
             <p className="text-xs font-medium text-[#475569] dark:text-[#8B949E] mb-2 uppercase tracking-widest">
               Assign to
             </p>
             <div className="grid grid-cols-2 gap-2">
-              {[
-                {
-                  mode: "everyone" as const,
-                  icon: Users,
-                  label: "All Members",
-                  desc: "Everyone completes independently",
-                },
-                {
-                  mode: "specific" as const,
-                  icon: User,
-                  label: "Specific Members",
-                  desc: "Only selected people are responsible",
-                },
-              ].map(({ mode, icon: Icon, label, desc }) => (
+              {(
+                [
+                  {
+                    mode: "everyone" as const,
+                    icon: Users,
+                    label: "All Members",
+                    desc: "Everyone completes independently",
+                  },
+                  {
+                    mode: "specific" as const,
+                    icon: User,
+                    label: "Specific Members",
+                    desc: "Only selected people are responsible",
+                  },
+                ] as const
+              ).map(({ mode, icon: Icon, label, desc }) => (
                 <button
                   key={mode}
                   type="button"
@@ -359,8 +354,7 @@ export function CreateReminderModal({
                     setSelectedUsers([]);
                   }}
                   className={cn(
-                    "flex flex-col items-start gap-1 p-3 rounded-xl border text-left",
-                    "transition-all duration-[250ms]",
+                    "flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-all duration-[250ms]",
                     form.assignMode === mode
                       ? "border-indigo-600 dark:border-indigo-500 bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.12)] shadow-[0_0_0_1px_rgba(79,70,229,0.15)]"
                       : "border-[#E2E6ED] dark:border-[#21262D] bg-white dark:bg-[#161B22] hover:border-[#C8CDD8] dark:hover:border-[#30363D]",
@@ -394,7 +388,6 @@ export function CreateReminderModal({
             </div>
           </div>
 
-          {/* Member picker — shown only in "specific" mode */}
           {form.assignMode === "specific" && (
             <div>
               {errors.assignedUsers && (
@@ -413,8 +406,7 @@ export function CreateReminderModal({
                         type="button"
                         onClick={() => toggleUser(uid)}
                         className={cn(
-                          "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left",
-                          "transition-all duration-[250ms]",
+                          "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all duration-[250ms]",
                           selected
                             ? "border-indigo-600 dark:border-indigo-500 bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.12)]"
                             : "border-[#E2E6ED] dark:border-[#21262D] bg-white dark:bg-[#161B22] hover:border-[#C8CDD8] dark:hover:border-[#30363D]",
@@ -429,7 +421,6 @@ export function CreateReminderModal({
                             {m.userId.email}
                           </p>
                         </div>
-                        {/* Checkbox */}
                         <div
                           className={cn(
                             "w-4 h-4 rounded border-[1.5px] flex items-center justify-center shrink-0 transition-all duration-[150ms]",
@@ -458,7 +449,6 @@ export function CreateReminderModal({
                     );
                   })
                 ) : (
-                  // Loading skeleton
                   <div className="space-y-1.5">
                     {[1, 2, 3].map((i) => (
                       <div
@@ -478,7 +468,6 @@ export function CreateReminderModal({
             </div>
           )}
 
-          {/* Info hint */}
           <div className="flex items-start gap-2 p-3 rounded-lg bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.10)] border border-[#C7D2FE] dark:border-[rgba(99,102,241,0.25)] text-[11px] text-[#4338CA] dark:text-[#A5B4FC]">
             <span className="mt-0.5">ℹ️</span>
             <span className="leading-relaxed">
@@ -489,7 +478,6 @@ export function CreateReminderModal({
         </div>
       )}
 
-      {/* Footer */}
       <div
         className={cn(
           "sticky bottom-0 -mx-6 -mb-5 px-6 py-4 mt-2 flex items-center gap-3",

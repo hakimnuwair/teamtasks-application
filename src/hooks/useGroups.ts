@@ -1,8 +1,14 @@
 /**
- * hooks/useGroups.ts — Groups data hook.
+ * hooks/useGroups.ts
  *
- * invite() → invitationService.sendInvitation (POST /invitations/groups/:id/invite)
- * removeMember() → groupService.removeMember  (DELETE /groups/:id/members/:memberId)
+ * Single source of truth for group data.
+ * Components never call groupService directly — they call this hook.
+ *
+ * Architecture: Component → useGroups → groupStore ← groupService
+ *
+ * Fetches on first mount if store is empty (login-fresh state).
+ * Subsequent mounts skip the fetch so navigating between pages
+ * doesn't redundantly re-fetch unchanged group data.
  */
 import { useEffect, useCallback } from "react";
 import { useGroupStore } from "../store/groupStore";
@@ -36,9 +42,14 @@ export const useGroups = () => {
     }
   }, [setGroups, setLoading, setError]);
 
+  // Fetch only when the store is empty (first load after login / after logout-reset).
+  // Pages that need fresh data can call fetchGroups() explicitly.
   useEffect(() => {
-    fetchGroups();
-  }, [fetchGroups]);
+    if (groups.length === 0 && !isLoading) {
+      fetchGroups();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const create = async (payload: CreateGroupPayload) => {
     try {
@@ -62,10 +73,6 @@ export const useGroups = () => {
     }
   };
 
-  /**
-   * Sends an invitation via the invitation service.
-   * The invited user appears as a group member only AFTER they accept.
-   */
   const invite = async (groupId: string, payload: InviteMemberPayload) => {
     try {
       await invitationService.sendInvitation(groupId, payload);
@@ -77,9 +84,6 @@ export const useGroups = () => {
     }
   };
 
-  /**
-   * Removes a member. Re-fetches the group list so member counts update.
-   */
   const removeMember = async (groupId: string, memberId: string) => {
     try {
       await groupService.removeMember(groupId, memberId);
@@ -88,6 +92,16 @@ export const useGroups = () => {
     } catch {
       toast.error("Could not remove member");
     }
+  };
+
+  /**
+   * Fetches full group detail (with populated members) for a single group.
+   * Result is returned, not stored globally — callers own the state.
+   * Used by CreateReminderModal to load member list for Specific assignment.
+   */
+  const getGroupById = async (id: string) => {
+    const data = await groupService.getGroupById(id);
+    return data;
   };
 
   return {
@@ -99,5 +113,6 @@ export const useGroups = () => {
     remove,
     invite,
     removeMember,
+    getGroupById,
   };
 };

@@ -1,44 +1,69 @@
-import { useEffect, useCallback, useState } from "react";
-import toast from "react-hot-toast";
+/**
+ * hooks/useInvitations.ts
+ *
+ * Wraps invitation service calls so components never import services directly.
+ *
+ * Architecture: Component → useInvitations → invitationService → backend
+ */
+import { useState, useCallback } from "react";
 import * as invitationService from "../services/invitation";
+import toast from "react-hot-toast";
 import type { GroupInvitation } from "../types/types";
 
-/**
- * Hook for the logged-in user's incoming group invitations.
- * Call respond(id, true) to accept, respond(id, false) to decline.
- */
 export const useInvitations = () => {
   const [invitations, setInvitations] = useState<GroupInvitation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchInvitations = useCallback(async () => {
+  const fetchMyInvitations = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await invitationService.getMyInvitations();
       setInvitations(data);
     } catch {
-      // silently ignore — non-critical background fetch
+      // Fail silently — not critical
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchInvitations();
-  }, [fetchInvitations]);
+  const respond = useCallback(
+    async (invitationId: string, accept: boolean, groupName?: string) => {
+      try {
+        await invitationService.respondToInvitation(invitationId, accept);
+        toast.success(
+          accept
+            ? `Joined ${groupName ?? "the group"}!`
+            : "Invitation declined",
+        );
+        setInvitations((prev) => prev.filter((i) => i._id !== invitationId));
+      } catch (err: unknown) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Could not respond to invitation",
+        );
+        throw err;
+      }
+    },
+    [],
+  );
 
-  const respond = async (invitationId: string, accept: boolean) => {
+  const cancel = useCallback(async (invitationId: string) => {
     try {
-      await invitationService.respondToInvitation(invitationId, accept);
-      toast.success(accept ? "Joined group!" : "Invitation declined");
-      // Remove from local list immediately; group list will re-fetch on next mount
+      await invitationService.cancelInvitation(invitationId);
+      toast.success("Invitation cancelled");
       setInvitations((prev) => prev.filter((i) => i._id !== invitationId));
-    } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "Could not respond to invitation";
-      toast.error(msg);
+    } catch {
+      toast.error("Could not cancel invitation");
     }
-  };
+  }, []);
 
-  return { invitations, isLoading, fetchInvitations, respond };
+  return {
+    invitations,
+    isLoading,
+    fetchMyInvitations,
+    respond,
+    cancel,
+    setInvitations,
+  };
 };

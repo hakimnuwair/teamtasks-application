@@ -1,5 +1,13 @@
 /**
- * hooks/useNotifications.ts — Notifications data hook
+ * hooks/useNotifications.ts
+ *
+ * Single source of truth for notification data.
+ * Components never call notificationService directly — they call this hook.
+ *
+ * Architecture: Component → useNotifications → notificationStore ← notificationService
+ *
+ * fetchNotifications() is called explicitly by the page that needs it (Notifications page).
+ * The unreadCount is bootstrapped by AppLayout via this hook on mount (not via the service directly).
  */
 import { useCallback } from "react";
 import { useNotificationStore } from "../store/notificationStore";
@@ -14,10 +22,10 @@ export const useNotifications = () => {
     markAsRead,
     markAllRead,
     removeNotification,
+    setUnreadCount,
   } = useNotificationStore();
 
-  const [isLoading, setIsLoading] = [false, (_: boolean) => {}]; // local loading handled by caller
-
+  /** Full fetch — loads all notifications and updates unreadCount in the store. */
   const fetchNotifications = useCallback(
     async (unreadOnly = false) => {
       try {
@@ -27,18 +35,28 @@ export const useNotifications = () => {
         });
         setNotifications(result.notifications, result.unreadCount);
       } catch {
-        // fail silently — store keeps previous state
+        // Fail silently — store keeps previous state, badge stays visible
       }
     },
     [setNotifications],
   );
+
+  /** Lightweight fetch — only refreshes the unreadCount badge (no full list). */
+  const refreshUnreadCount = useCallback(async () => {
+    try {
+      const result = await notificationService.getNotifications({ limit: 1 });
+      setUnreadCount(result.unreadCount);
+    } catch {
+      // Fail silently
+    }
+  }, [setUnreadCount]);
 
   const handleMarkAsRead = async (id: string) => {
     markAsRead(id); // optimistic
     try {
       await notificationService.markAsRead([id]);
     } catch {
-      // optimistic update is fine — no need to revert for read state
+      // Optimistic update is fine — read state doesn't need to revert
     }
   };
 
@@ -65,6 +83,7 @@ export const useNotifications = () => {
     notifications,
     unreadCount,
     fetchNotifications,
+    refreshUnreadCount,
     markAsRead: handleMarkAsRead,
     markAllAsRead: handleMarkAllAsRead,
     deleteNotification: handleDelete,

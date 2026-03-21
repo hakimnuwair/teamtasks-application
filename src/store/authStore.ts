@@ -4,13 +4,10 @@
  * Manages auth state: user, isAuthenticated, isInitializing.
  *
  * normalizeUser: ensures user.id and user._id are always plain strings.
- * Needed because lean() Mongoose objects return _id as ObjectId with no .id getter,
- * while login response user has { id } but no { _id }.
- *
- * initialize: called once on app mount (and by OAuthCallbackPage after token storage).
- *   GET /auth/me → { success, message, _id, name, email, ... } (user fields at root)
- *
- * login: POST /auth/login → { success, message, accessToken, user: { id, name, email, role } }
+ * login/initialize fetch user, store token, connect socket.
+ * logout: clears token, disconnects socket, and resets all dependent stores
+ *   (notificationStore, groupStore, reminderStore) so stale data from the
+ *   previous session is never shown to the next user on the same device.
  */
 
 import { create } from "zustand";
@@ -24,6 +21,24 @@ function normalizeUser(raw: Record<string, unknown>): User {
   const _id = String(raw._id ?? raw.id ?? "");
   return { ...(raw as unknown as User), id: _id, _id };
 }
+
+// Lazy imports to avoid circular deps — stores imported at call time
+const resetDependentStores = () => {
+  // Dynamic import so this file doesn't create circular import chains
+  import("./notificationStore").then((m) => {
+    m.useNotificationStore.setState({ notifications: [], unreadCount: 0 });
+  });
+  import("./groupStore").then((m) => {
+    m.useGroupStore.setState({ groups: [], isLoading: false, error: null });
+  });
+  import("./reminderStore").then((m) => {
+    m.useReminderStore.setState({
+      reminders: [],
+      pagination: null,
+      filters: { page: 1, limit: 20 },
+    });
+  });
+};
 
 interface AuthState {
   user: User | null;
@@ -80,6 +95,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } finally {
       tokenManager.clear();
       disconnectSocket();
+      resetDependentStores();
       set({ user: null, isAuthenticated: false });
     }
   },

@@ -4,6 +4,7 @@ import type { Reminder, ReminderStatus, Priority } from "../types/types";
 interface ReminderFilters {
   status?: ReminderStatus;
   priority?: Priority;
+  groupId?: string;
   page: number;
   limit: number;
 }

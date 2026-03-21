@@ -1,4 +1,4 @@
-import { Moon, Sun } from "lucide-react";
+import { Moon, SunMedium } from "lucide-react";
 import { useUIStore } from "../../store/uiStore";
 import { useAuthStore } from "../../store/authStore";
 
@@ -24,7 +24,7 @@ export const Topbar = ({ title, actions }: TopbarProps) => {
           title={isDarkMode ? "Light mode" : "Dark mode"}
         >
           {isDarkMode ? (
-            <Sun className="w-4 h-4" />
+            <SunMedium className="w-4 h-4 text-slate-300" />
           ) : (
             <Moon className="w-4 h-4" />
           )}

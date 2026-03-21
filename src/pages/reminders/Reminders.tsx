@@ -1,11 +1,16 @@
 /**
  * pages/reminders/Reminders.tsx
  *
- * Every styling decision below has a comment mapping it to STYLES_README.md.
- * When you need to change a color, shadow, or spacing — find the section
- * reference in the comment and look it up in the README first.
+ * Architecture: RemindersPage → useReminders + useGroups (hooks) → stores → services
+ *
+ * Fix: ReminderCard shows per-user completion state correctly:
+ *   - Top-level status COMPLETED = all members done → grey strikethrough
+ *   - Current user completed but others haven't → teal checkmark + "You completed" badge
+ *   - Not completed yet → interactive circle toggle
+ *
+ * Group filter: ALL | personal | specific group
+ * Clear filters: single button resets all filters to defaults.
  */
-
 import { useState } from "react";
 import {
   Plus,
@@ -18,8 +23,12 @@ import {
   ChevronRight,
   SlidersHorizontal,
   Tag,
+  Users,
+  X,
 } from "lucide-react";
 import { useReminders } from "../../hooks/useReminders";
+import { useGroups } from "../../hooks/useGroups";
+import { useAuthStore } from "../../store/authStore";
 import {
   Button,
   Badge,
@@ -33,6 +42,8 @@ import { CreateReminderModal } from "../../components/modal/CreateReminderModal"
 import { cn } from "../../utils/cn";
 import { formatDueDate, isOverdue } from "../../utils/formatDate";
 import type { Reminder, ReminderStatus, Priority } from "../../types/types";
+import { DeleteConfirmModal } from "../../components/modal/DeleteConfirmationModal";
+import { parseApiError } from "../../config/axios";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -54,6 +65,10 @@ const PRIORITY_OPTIONS: { label: string; value: Priority | "ALL" }[] = [
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REMINDER CARD
+// Per-user completion logic:
+//   iDone     = current user already completed this reminder
+//   globalDone = top-level status is COMPLETED (ALL members done)
+//   isGroup   = reminder belongs to a group (has userCompletions)
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ReminderCardProps {
@@ -71,10 +86,31 @@ function ReminderCard({
   isCompleting,
   isDeleting,
 }: ReminderCardProps) {
+  const { user } = useAuthStore();
+  const myId = user?.id ?? user?._id ?? "";
   const overdue = isOverdue(reminder.dueDateTime, reminder.status);
-  const isDone = reminder.status === "COMPLETED";
+  const globalDone = reminder.status === "COMPLETED";
+  const isGroup = !!reminder.groupId;
 
-  // Maps to Badge component variants from ui/index.tsx
+  // Per-user completion — only meaningful for group reminders
+  const iDone = isGroup
+    ? (reminder.userCompletions ?? []).some((uc) => {
+        const uid =
+          typeof uc.userId === "string"
+            ? uc.userId
+            : (uc.userId as { _id: string })._id;
+        return uid === myId;
+      })
+    : globalDone;
+
+  const completedIds = new Set(
+    (reminder.userCompletions ?? []).map((uc) =>
+      typeof uc.userId === "string"
+        ? uc.userId
+        : (uc.userId as { _id: string })._id,
+    ),
+  );
+
   const statusVariant: Record<
     ReminderStatus,
     "pending" | "completed" | "overdue"
@@ -92,171 +128,182 @@ function ReminderCard({
   return (
     <article
       className={cn(
-        // ── Layout ─────────────────────────────────────────────────────────
-        "group relative flex items-start gap-4 p-5 rounded-xl border",
-
-        // ── Transition: 250ms per §7.1 "base" timing ───────────────────────
-        "transition-all duration-[250ms] ease-in-out",
-
-        // ── Surface colors ─────────────────────────────────────────────────
-        // Normal card: §9.1 — bg-white / §2.2 dark surface
-        !overdue && "bg-white dark:bg-[#161B22]",
-        !overdue && "border-[#E2E6ED] dark:border-[#21262D]", // §2.1/2.2 border-default
-
-        // Overdue card: §2.5 status overdue colors
-        overdue && "bg-[#FFF8F8] dark:bg-[rgba(244,63,94,0.05)]",
-        overdue && "border-[#FECDD3] dark:border-[rgba(244,63,94,0.25)]",
-
-        // ── Shadow: §6 shadow-card ─────────────────────────────────────────
-        "shadow-[0_2px_8px_rgba(15,23,42,0.06),0_0_1px_rgba(15,23,42,0.08)]",
-        "dark:shadow-[0_2px_8px_rgba(0,0,0,0.30),0_0_1px_rgba(255,255,255,0.04)]",
-
-        // ── Hover lift: §9.1 card-interactive ─────────────────────────────
-        !isDone &&
-          !overdue && [
-            "hover:-translate-y-0.5",
-            "hover:border-[#C8CDD8] dark:hover:border-[#30363D]", // §2.1/2.2 border-strong
-            "hover:shadow-[0_6px_16px_rgba(15,23,42,0.09)]",
-            "dark:hover:shadow-[0_6px_16px_rgba(0,0,0,0.45)]",
-          ],
+        "group relative flex flex-col gap-0 rounded-xl border transition-all duration-[250ms] ease-in-out overflow-hidden",
+        !overdue &&
+          "bg-white dark:bg-[#161B22] border-[#E2E6ED] dark:border-[#21262D]",
         overdue &&
-          !isDone && [
-            "hover:-translate-y-0.5",
-            "hover:shadow-[0_6px_16px_rgba(244,63,94,0.12)]", // §6 glow-coral tint
-            "dark:hover:shadow-[0_6px_16px_rgba(244,63,94,0.20)]",
-          ],
+          "bg-[#FFF8F8] dark:bg-[rgba(244,63,94,0.05)] border-[#FECDD3] dark:border-[rgba(244,63,94,0.25)]",
+        "shadow-[0_2px_8px_rgba(15,23,42,0.06),0_0_1px_rgba(15,23,42,0.08)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]",
+        !globalDone &&
+          !overdue &&
+          "hover:-translate-y-0.5 hover:border-[#C8CDD8] dark:hover:border-[#30363D] hover:shadow-[0_6px_16px_rgba(15,23,42,0.09)] dark:hover:shadow-[0_6px_16px_rgba(0,0,0,0.45)]",
+        overdue &&
+          !globalDone &&
+          "hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(244,63,94,0.12)] dark:hover:shadow-[0_6px_16px_rgba(244,63,94,0.20)]",
       )}
     >
-      {/* ── Complete toggle ──────────────────────────────────────────────── */}
-      <button
-        onClick={() => !isDone && onComplete(reminder._id)}
-        disabled={isDone || isCompleting}
-        className={cn(
-          "mt-0.5 shrink-0 transition-all duration-[250ms]",
-          isDone
-            ? "text-emerald-500 cursor-default" // §2.5 completed dot color
-            : "text-[#C8CDD8] dark:text-[#30363D] hover:text-indigo-600 dark:hover:text-indigo-400 hover:scale-110", // §2.3 indigo-600
-          "disabled:opacity-50",
-        )}
-      >
-        {isCompleting ? (
-          <Spinner size="sm" />
-        ) : isDone ? (
-          <CheckCircle2 className="w-5 h-5" />
-        ) : (
-          <Circle className="w-5 h-5" />
-        )}
-      </button>
-
-      {/* ── Content ─────────────────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0">
-        {/* Title row */}
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <h3
-            className={cn(
-              "font-medium text-sm leading-snug tracking-wide", // §3.2 body-strong
-              isDone
-                ? "line-through text-[#94A3B8] dark:text-[#484F58]" // §3.3 text-tertiary (done)
-                : "text-[#0F172A] dark:text-[#F0F6FC]", // §3.3 text-primary
-            )}
-          >
-            {reminder.title}
-          </h3>
-
-          {/* §9.4 status badge */}
-          <Badge variant={statusVariant[reminder.status]}>
-            {reminder.status.charAt(0) + reminder.status.slice(1).toLowerCase()}
-          </Badge>
-        </div>
-
-        {/* Description: §3.3 text-secondary */}
-        {reminder.description && (
-          <p className="mt-1.5 text-xs text-[#475569] dark:text-[#8B949E] leading-relaxed line-clamp-2">
-            {reminder.description}
-          </p>
-        )}
-
-        {/* ── Meta row ────────────────────────────────────────────────── */}
-        <div className="mt-3 flex items-center gap-3 flex-wrap">
-          {/* Due date */}
-          <span
-            className={cn(
-              "inline-flex items-center gap-1.5 text-xs font-medium",
-              overdue
-                ? "text-[#BE123C] dark:text-[#FDA4AF]" // §2.5 overdue text
-                : "text-[#94A3B8]", // §3.3 text-tertiary
-            )}
-          >
-            {overdue ? (
-              <AlertTriangle className="w-3 h-3" />
-            ) : (
-              <Clock className="w-3 h-3" />
-            )}
-            {formatDueDate(reminder.dueDateTime)}
-          </span>
-
-          {/* Priority: §9.4 badge */}
-          <Badge variant={priorityVariant[reminder.priority]} dot={false}>
-            {reminder.priority}
-          </Badge>
-
-          {/* Group pill: §3.2 caption style + §2.5 pending bg */}
-          {reminder.groupId && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.14)] px-2 py-0.5 rounded-full">
-              <Tag className="w-2.5 h-2.5" />
-              {reminder.groupId.name}
-            </span>
+      {/* Main row */}
+      <div className="flex items-start gap-4 p-5">
+        {/* Complete toggle */}
+        <button
+          onClick={() => !iDone && onComplete(reminder._id)}
+          disabled={iDone || isCompleting}
+          title={
+            iDone
+              ? globalDone
+                ? "Everyone completed"
+                : "You completed this"
+              : "Mark as complete"
+          }
+          className={cn(
+            "mt-0.5 shrink-0 transition-all duration-[250ms]",
+            globalDone
+              ? "text-emerald-500 cursor-default"
+              : iDone
+                ? "text-teal-500 cursor-default"
+                : "text-[#C8CDD8] dark:text-[#30363D] hover:text-indigo-600 dark:hover:text-indigo-400 hover:scale-110",
+            "disabled:opacity-50",
           )}
+        >
+          {isCompleting ? (
+            <Spinner size="sm" />
+          ) : globalDone || iDone ? (
+            <CheckCircle2 className="w-5 h-5" />
+          ) : (
+            <Circle className="w-5 h-5" />
+          )}
+        </button>
 
-          {/* Assignee stack: §9.5 avatar-stack — right-aligned via ml-auto */}
-          {reminder.assignedUsers.length > 0 && (
-            <div className="ml-auto">
-              <AvatarStack users={reminder.assignedUsers} max={3} size="xs" />
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          {/* Title + status */}
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <h3
+              className={cn(
+                "font-medium text-sm leading-snug tracking-wide",
+                globalDone
+                  ? "line-through text-[#94A3B8] dark:text-[#484F58]"
+                  : iDone
+                    ? "text-[#94A3B8] dark:text-[#484F58]"
+                    : "text-[#0F172A] dark:text-[#F0F6FC]",
+              )}
+            >
+              {reminder.title}
+            </h3>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {/* "You done" badge — only shown for group reminders where I'm done but not all */}
+              {isGroup && iDone && !globalDone && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#F0FDF4] dark:bg-[rgba(34,197,94,0.12)] text-[#16A34A] dark:text-[#86EFAC]">
+                  <CheckCircle2 className="w-2.5 h-2.5" /> You done
+                </span>
+              )}
+              <Badge variant={statusVariant[reminder.status]}>
+                {reminder.status.charAt(0) +
+                  reminder.status.slice(1).toLowerCase()}
+              </Badge>
             </div>
+          </div>
+
+          {reminder.description && (
+            <p className="mt-1.5 text-xs text-[#475569] dark:text-[#8B949E] leading-relaxed line-clamp-2">
+              {reminder.description}
+            </p>
           )}
+
+          {/* Meta row */}
+          <div className="mt-3 flex items-center gap-3 flex-wrap">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 text-xs font-medium",
+                overdue
+                  ? "text-[#BE123C] dark:text-[#FDA4AF]"
+                  : "text-[#94A3B8]",
+              )}
+            >
+              {overdue ? (
+                <AlertTriangle className="w-3 h-3" />
+              ) : (
+                <Clock className="w-3 h-3" />
+              )}
+              {formatDueDate(reminder.dueDateTime)}
+            </span>
+            <Badge variant={priorityVariant[reminder.priority]} dot={false}>
+              {reminder.priority}
+            </Badge>
+            {reminder.groupId && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.14)] px-2 py-0.5 rounded-full">
+                <Tag className="w-2.5 h-2.5" />
+                {reminder.groupId.name}
+              </span>
+            )}
+            {reminder.assignedUsers.length > 0 && (
+              <div className="ml-auto">
+                <AvatarStack users={reminder.assignedUsers} max={3} size="xs" />
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Delete */}
+        <button
+          onClick={() => onDelete(reminder._id)}
+          disabled={isDeleting}
+          className={cn(
+            "shrink-0 mt-0.5 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-[250ms]",
+            "text-[#C8CDD8] dark:text-[#30363D] hover:bg-[#FFF1F2] dark:hover:bg-[rgba(244,63,94,0.10)] hover:text-[#F43F5E] disabled:opacity-50",
+          )}
+        >
+          {isDeleting ? <Spinner size="sm" /> : <Trash2 className="w-4 h-4" />}
+        </button>
       </div>
 
-      {/* ── Delete: fade in on group-hover per §7.3 micro-interaction ───── */}
-      <button
-        onClick={() => onDelete(reminder._id)}
-        disabled={isDeleting}
-        className={cn(
-          "shrink-0 mt-0.5 p-1.5 rounded-lg",
-          "opacity-0 group-hover:opacity-100",
-          "transition-all duration-[250ms]",
-          "text-[#C8CDD8] dark:text-[#30363D]",
-          "hover:bg-[#FFF1F2] dark:hover:bg-[rgba(244,63,94,0.10)]", // §2.5 overdue bg
-          "hover:text-[#F43F5E]", // §2.3 coral-500
-          "disabled:opacity-50",
-        )}
-      >
-        {isDeleting ? <Spinner size="sm" /> : <Trash2 className="w-4 h-4" />}
-      </button>
+      {/* Per-member completion strip — only for group reminders with assigned users */}
+      {isGroup && reminder.assignedUsers.length > 0 && (
+        <div className="px-5 pb-3 flex flex-wrap gap-1.5 border-t border-[#F1F5F9] dark:border-[#21262D] pt-2.5">
+          {reminder.assignedUsers.map((u) => {
+            const done = completedIds.has(u._id);
+            const isMe = u._id === myId;
+            return (
+              <span
+                key={u._id}
+                title={`${u.name}${isMe ? " (you)" : ""}: ${done ? "completed" : "pending"}`}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium",
+                  done
+                    ? "bg-[#F0FDF4] dark:bg-[rgba(34,197,94,0.12)] text-[#16A34A] dark:text-[#86EFAC]"
+                    : "bg-[#EEF0F4] dark:bg-[#21262D] text-[#64748B] dark:text-[#8B949E]",
+                  isMe && "ring-1 ring-indigo-300 dark:ring-indigo-700",
+                )}
+              >
+                {done ? (
+                  <CheckCircle2 className="w-2.5 h-2.5" />
+                ) : (
+                  <Circle className="w-2.5 h-2.5 opacity-50" />
+                )}
+                {u.name.split(" ")[0]}
+                {isMe ? " (you)" : ""}
+              </span>
+            );
+          })}
+        </div>
+      )}
     </article>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SKELETON — §9.12
-// Colors mirror the spec: surface-sunken (#EEF0F4) animate-pulse
+// SKELETON
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ReminderSkeleton() {
   return (
-    <div
-      className={cn(
-        "flex items-start gap-4 p-5 rounded-xl border",
-        "bg-white dark:bg-[#161B22]", // §2.1/2.2 surface
-        "border-[#E2E6ED] dark:border-[#21262D]", // §2.1/2.2 border-default
-      )}
-    >
+    <div className="flex items-start gap-4 p-5 rounded-xl border bg-white dark:bg-[#161B22] border-[#E2E6ED] dark:border-[#21262D]">
       <div className="w-5 h-5 rounded-full mt-0.5 shrink-0 animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
       <div className="flex-1 space-y-2.5">
-        <div className="h-3.5 rounded-md w-3/4  animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
-        <div className="h-2.5 rounded-md w-1/2  animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
+        <div className="h-3.5 rounded-md w-3/4 animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
+        <div className="h-2.5 rounded-md w-1/2 animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
         <div className="flex gap-3 pt-0.5">
-          <div className="h-2.5 rounded-md   w-24 animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
+          <div className="h-2.5 rounded-md w-24 animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
           <div className="h-2.5 rounded-full w-14 animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
         </div>
       </div>
@@ -269,12 +316,16 @@ function ReminderSkeleton() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const RemindersPage = () => {
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [activeStatus, setActiveStatus] = useState<ReminderStatus | "ALL">(
     "ALL",
   );
   const [activePriority, setActivePriority] = useState<Priority | "ALL">("ALL");
+  const [activeGroup, setActiveGroup] = useState<string>("ALL");
   const [createOpen, setCreateOpen] = useState(false);
 
   const {
@@ -286,6 +337,11 @@ export const RemindersPage = () => {
     complete,
     remove,
   } = useReminders();
+  const { groups } = useGroups();
+
+  // Check if any filter is active
+  const hasActiveFilters =
+    activeStatus !== "ALL" || activePriority !== "ALL" || activeGroup !== "ALL";
 
   const handleStatusChange = (status: ReminderStatus | "ALL") => {
     setActiveStatus(status);
@@ -300,17 +356,45 @@ export const RemindersPage = () => {
     });
   };
 
+  const handleGroupChange = (groupId: string) => {
+    setActiveGroup(groupId);
+    const storeGroupId =
+      groupId === "ALL" || groupId === "personal" ? undefined : groupId;
+    setFilters({ groupId: storeGroupId, page: 1 });
+  };
+
+  const handleClearFilters = () => {
+    setActiveStatus("ALL");
+    setActivePriority("ALL");
+    setActiveGroup("ALL");
+    setFilters({
+      status: undefined,
+      priority: undefined,
+      groupId: undefined,
+      page: 1,
+    });
+  };
+
   const handleComplete = async (id: string) => {
     setCompletingId(id);
     await complete(id);
     setCompletingId(null);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this reminder? This cannot be undone.")) return;
-    setDeletingId(id);
-    await remove(id);
-    setDeletingId(null);
+  const handleDelete = (id: string) => {
+    const reminder = reminders.find((r) => r._id === id);
+    setDeleteTarget({ id, title: reminder?.title ?? "this reminder" });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    try {
+      await remove(deleteTarget.id);
+    } catch (err: unknown) {
+      // Re-throw with the real backend error message so DeleteConfirmModal can display it
+      throw new Error(parseApiError(err, "Could not delete reminder"));
+    }
+    setDeleteTarget(null);
   };
 
   const handlePageChange = (page: number) => {
@@ -318,26 +402,27 @@ export const RemindersPage = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const displayedReminders =
+    activeGroup === "personal"
+      ? reminders.filter((r) => !r.groupId)
+      : reminders;
+
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
-      {/* ── Page header ────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          {/* §3.2 H2: 28px desktop / 22px mobile — §3.3 text-primary */}
           <h2 className="text-[22px] md:text-[28px] font-semibold tracking-wide leading-snug text-[#0F172A] dark:text-[#F0F6FC]">
             My Reminders
           </h2>
-          {/* §3.3 text-tertiary for subtitle */}
           <p className="text-sm text-[#94A3B8] mt-0.5">
             {pagination
               ? `${pagination.total} reminder${pagination.total !== 1 ? "s" : ""} total`
               : "Manage your tasks and deadlines"}
           </p>
         </div>
-
-        {/* §9.2 Primary button: gradient indigo→teal */}
         <Button
           leftIcon={<Plus className="w-4 h-4" />}
           size="md"
@@ -347,16 +432,12 @@ export const RemindersPage = () => {
         </Button>
       </div>
 
-      {/* ── Filters bar ────────────────────────────────────────────────────── */}
+      {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
-        {/* Status tab group ─────────────────────────────────────────────── */}
-        {/* Container: §9.1 card surface + border */}
+        {/* Status tabs */}
         <div
           className={cn(
-            "flex items-center p-1 gap-0.5 rounded-xl",
-            "bg-white dark:bg-[#161B22]",
-            "border border-[#E2E6ED] dark:border-[#21262D]",
-            "shadow-[0_1px_3px_rgba(15,23,42,0.06)]",
+            "flex items-center p-1 gap-0.5 rounded-xl bg-white dark:bg-[#161B22] border border-[#E2E6ED] dark:border-[#21262D] shadow-[0_1px_3px_rgba(15,23,42,0.06)]",
           )}
         >
           {STATUS_TABS.map(({ label, value }) => (
@@ -364,13 +445,10 @@ export const RemindersPage = () => {
               key={value}
               onClick={() => handleStatusChange(value)}
               className={cn(
-                "px-3.5 py-1.5 text-xs font-medium rounded-lg",
-                "transition-all duration-[250ms] ease-in-out", // §7.1 base timing
+                "px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all duration-[250ms] ease-in-out",
                 activeStatus === value
-                  ? // Active: §9.2 Primary gradient
-                    "bg-gradient-to-r from-indigo-600 to-teal-500 text-white shadow-sm shadow-indigo-500/20"
-                  : // Inactive: §9.2 Ghost
-                    "text-[#475569] dark:text-[#8B949E] hover:text-[#0F172A] dark:hover:text-[#F0F6FC] hover:bg-black/5 dark:hover:bg-white/5",
+                  ? "bg-gradient-to-r from-indigo-600 to-teal-500 text-white shadow-sm shadow-indigo-500/20"
+                  : "text-[#475569] dark:text-[#8B949E] hover:text-[#0F172A] dark:hover:text-[#F0F6FC] hover:bg-black/5 dark:hover:bg-white/5",
               )}
             >
               {label}
@@ -378,7 +456,7 @@ export const RemindersPage = () => {
           ))}
         </div>
 
-        {/* Priority select ──────────────────────────────────────────────── */}
+        {/* Priority select */}
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="w-3.5 h-3.5 text-[#94A3B8] shrink-0" />
           <select
@@ -387,16 +465,13 @@ export const RemindersPage = () => {
               handlePriorityChange(e.target.value as Priority | "ALL")
             }
             className={cn(
-              // §9.3 Input: compact version
               "h-9 px-3 text-xs rounded-lg appearance-none cursor-pointer",
-              "bg-white dark:bg-[#161B22]",
-              "border border-[#E2E6ED] dark:border-[#21262D]",
+              "bg-white dark:bg-[#161B22] border border-[#E2E6ED] dark:border-[#21262D]",
               "text-[#475569] dark:text-[#8B949E]",
-              // §7.3 Input focus: indigo border + glow ring
-              "focus:outline-none focus:border-indigo-600 dark:focus:border-[#818CF8]",
-              "focus:shadow-[0_0_0_3px_rgba(79,70,229,0.15)]",
-              "hover:border-[#C8CDD8] dark:hover:border-[#30363D]", // §2.1/2.2 border-strong
-              "transition-all duration-[250ms]",
+              "focus:outline-none focus:border-indigo-600 dark:focus:border-[#818CF8] focus:shadow-[0_0_0_3px_rgba(79,70,229,0.15)]",
+              "hover:border-[#C8CDD8] dark:hover:border-[#30363D] transition-all duration-[250ms]",
+              activePriority !== "ALL" &&
+                "border-indigo-600 dark:border-indigo-500 text-indigo-600 dark:text-indigo-400",
             )}
           >
             {PRIORITY_OPTIONS.map(({ label, value }) => (
@@ -407,74 +482,124 @@ export const RemindersPage = () => {
           </select>
         </div>
 
-        {/* Result count pill: §3.2 caption style */}
-        {!isLoading && reminders.length > 0 && (
+        {/* Group filter */}
+        {groups.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Users className="w-3.5 h-3.5 text-[#94A3B8] shrink-0" />
+            <select
+              value={activeGroup}
+              onChange={(e) => handleGroupChange(e.target.value)}
+              className={cn(
+                "h-9 px-3 text-xs rounded-lg appearance-none cursor-pointer",
+                "bg-white dark:bg-[#161B22] border border-[#E2E6ED] dark:border-[#21262D]",
+                "text-[#475569] dark:text-[#8B949E]",
+                "focus:outline-none focus:border-indigo-600 dark:focus:border-[#818CF8] focus:shadow-[0_0_0_3px_rgba(79,70,229,0.15)]",
+                "hover:border-[#C8CDD8] dark:hover:border-[#30363D] transition-all duration-[250ms]",
+                activeGroup !== "ALL" &&
+                  "border-indigo-600 dark:border-indigo-500 text-indigo-600 dark:text-indigo-400",
+              )}
+            >
+              <option value="ALL">All Groups</option>
+              <option value="personal">Personal only</option>
+              {groups.map((g) => (
+                <option key={g._id} value={g._id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Clear filters */}
+        {hasActiveFilters && (
+          <button
+            onClick={handleClearFilters}
+            className={cn(
+              "flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-medium",
+              "border border-[#E2E6ED] dark:border-[#21262D]",
+              "text-[#475569] dark:text-[#8B949E] bg-white dark:bg-[#161B22]",
+              "hover:border-[#F43F5E] hover:text-[#F43F5E] dark:hover:border-[rgba(244,63,94,0.50)] dark:hover:text-[#FDA4AF]",
+              "transition-all duration-[250ms]",
+            )}
+          >
+            <X className="w-3.5 h-3.5" />
+            Clear filters
+          </button>
+        )}
+
+        {/* Count pill */}
+        {!isLoading && displayedReminders.length > 0 && (
           <span className="ml-auto text-[11px] font-medium uppercase tracking-widest text-[#94A3B8] bg-[#EEF0F4] dark:bg-[#21262D] px-2.5 py-1 rounded-full">
-            {reminders.length} shown
+            {displayedReminders.length} shown
           </span>
         )}
       </div>
 
-      {/* ── Error: §2.5 overdue semantic colors ────────────────────────────── */}
+      {/* Error */}
       {error && (
-        <div
-          className={cn(
-            "flex items-start gap-3 p-4 rounded-xl text-sm",
-            "bg-[#FFF1F2] dark:bg-[rgba(244,63,94,0.10)]",
-            "border border-[#FECDD3] dark:border-[rgba(244,63,94,0.25)]",
-            "text-[#BE123C] dark:text-[#FDA4AF]",
-          )}
-        >
+        <div className="flex items-start gap-3 p-4 rounded-xl text-sm bg-[#FFF1F2] dark:bg-[rgba(244,63,94,0.10)] border border-[#FECDD3] dark:border-[rgba(244,63,94,0.25)] text-[#BE123C] dark:text-[#FDA4AF]">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           {error}
         </div>
       )}
 
-      {/* ── Content ────────────────────────────────────────────────────────── */}
+      {/* Content */}
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <ReminderSkeleton key={i} />
           ))}
         </div>
-      ) : reminders.length === 0 ? (
-        // §12 Empty state
+      ) : displayedReminders.length === 0 ? (
         <Card>
           <EmptyState
             icon={<CheckCircle2 className="w-8 h-8" />}
             title="No reminders found"
             description={
-              activeStatus === "ALL"
-                ? "You're all caught up! Create your first reminder to get started."
-                : `No ${activeStatus.toLowerCase()} reminders right now.`
+              hasActiveFilters
+                ? "Try clearing some filters to see more reminders."
+                : "You're all caught up! Create your first reminder to get started."
             }
             action={
-              <Button leftIcon={<Plus className="w-4 h-4" />} size="sm">
-                Create Reminder
-              </Button>
+              hasActiveFilters ? (
+                <Button
+                  variant="secondary"
+                  leftIcon={<X className="w-4 h-4" />}
+                  size="sm"
+                  onClick={handleClearFilters}
+                >
+                  Clear filters
+                </Button>
+              ) : (
+                <Button
+                  leftIcon={<Plus className="w-4 h-4" />}
+                  size="sm"
+                  onClick={() => setCreateOpen(true)}
+                >
+                  Create Reminder
+                </Button>
+              )
             }
           />
         </Card>
       ) : (
         <div className="space-y-3">
-          {reminders.map((reminder) => (
+          {displayedReminders.map((reminder) => (
             <ReminderCard
               key={reminder._id}
               reminder={reminder}
               onComplete={handleComplete}
               onDelete={handleDelete}
               isCompleting={completingId === reminder._id}
-              isDeleting={deletingId === reminder._id}
+              isDeleting={false}
             />
           ))}
         </div>
       )}
 
-      {/* ── Pagination ──────────────────────────────────────────────────────── */}
+      {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
-        // §14 .divider above pagination
         <div className="flex items-center justify-between border-t border-[#E2E6ED] dark:border-[#21262D] pt-4 mt-2">
-          {/* §3.3 text-tertiary */}
           <p className="text-xs text-[#94A3B8]">
             Page{" "}
             <span className="font-medium text-[#475569] dark:text-[#8B949E]">
@@ -486,7 +611,6 @@ export const RemindersPage = () => {
             </span>
           </p>
           <div className="flex items-center gap-2">
-            {/* §9.2 Secondary button */}
             <Button
               variant="secondary"
               size="sm"
@@ -509,17 +633,20 @@ export const RemindersPage = () => {
         </div>
       )}
 
-      {/* §9.2 FAB — fixed bottom-right, above bottom nav on mobile */}
       <FAB
         onClick={() => setCreateOpen(true)}
         icon={<Plus className="w-6 h-6" />}
         label="New Reminder"
       />
-
-      {/* Create Reminder Modal */}
       <CreateReminderModal
         isOpen={createOpen}
         onClose={() => setCreateOpen(false)}
+      />
+      <DeleteConfirmModal
+        isOpen={deleteTarget !== null}
+        title={deleteTarget?.title ?? ""}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );
