@@ -1,169 +1,159 @@
 /**
- * hooks/useSocket.ts — Wire ALL Socket.io events for the authenticated session.
+ * src/hooks/useSocket.ts
  *
- * Mount order: AppLayout calls this once. Listeners are registered when
- * user is present and torn down on unmount or user change.
+ * Registers ALL real-time event listeners for the authenticated user.
+ * Called ONCE inside AppLayout — mounts with the app, unmounts on logout.
  *
- * Backend emits these events to the client's personal room (userId):
+ * ┌──────────────────────────────────────────────────────────────────────┐
+ * │  EVENTS RECEIVED FROM BACKEND                                        │
+ * ├──────────────────────────────┬───────────────────────────────────────┤
+ * │  notificationTriggered       │ Reminder overdue / group invite / etc │
+ * │  reminderCreated             │ Group member created a reminder        │
+ * │  reminderUpdated             │ Reminder was edited                    │
+ * │  reminderCompleted           │ A member completed a reminder          │
+ * │  reminderOverdue             │ Scheduler marked reminder overdue      │
+ * │  groupMemberAdded            │ Current user was added to a group      │
+ * └──────────────────────────────┴───────────────────────────────────────┘
  *
- *   notificationTriggered  { notification: Notification }
- *     → A REMINDER_DUE notification was created by the scheduler.
- *       The full Notification object is attached.
- *
- *   reminderCreated   { reminder: Reminder }
- *     → A group reminder was created that I'm assigned to.
- *
- *   reminderUpdated   { reminder: Reminder }
- *     → A reminder I own or am assigned to was updated.
- *
- *   reminderCompleted { reminderId: string }  — backend sends ID only
- *     → A reminder was marked complete. We optimistically update status.
- *
- *   groupMemberAdded  { groupId: string, userId: string }
- *     → I was added to a group (via old direct-add route).
- *       We invalidate the group store so the list refreshes.
+ * Architecture: AppLayout → useSocket → getSocket() → stores (no service calls in UI)
  */
-
 import { useEffect, useRef } from "react";
 import { getSocket } from "../config/socket";
+import { useAuthStore } from "../store/authStore";
 import { useNotificationStore } from "../store/notificationStore";
 import { useReminderStore } from "../store/reminderStore";
 import { useGroupStore } from "../store/groupStore";
-import { useAuthStore } from "../store/authStore";
-import * as groupService from "../services/group";
 import * as notificationService from "../services/notification";
+import * as groupService from "../services/group";
 import toast from "react-hot-toast";
-import type { Notification, Reminder } from "../types/types";
+import type { Reminder, Notification } from "../types/types";
 
-// ─── Typed socket payloads ────────────────────────────────────────────────────
+// ── Payload shapes ────────────────────────────────────────────────────────────
 
-interface NotificationPayload {
+interface NotifPayload {
   notification?: Notification;
-  // Scheduler might send a simpler shape — handle both
   message?: string;
-  reminderId?: string;
   title?: string;
+  type?: string;
 }
-
-interface ReminderCreatedPayload {
+interface ReminderPayload {
   reminder: Reminder;
 }
-interface ReminderUpdatedPayload {
-  reminder: Reminder;
-}
-interface ReminderCompletedPayload {
+interface ReminderDonePayload {
   reminderId: string;
   reminder?: Reminder;
 }
-interface GroupMemberAddedPayload {
+interface ReminderOverduePayload {
+  reminderId: string;
+  reminder?: Reminder;
+}
+interface GroupAddedPayload {
   groupId: string;
-  userId?: string;
 }
 
-// ─── Toast helpers ────────────────────────────────────────────────────────────
+// ── Toast per notification type ───────────────────────────────────────────────
 
-function showNotifToast(n: Notification) {
-  switch (n.type) {
-    case "REMINDER_DUE":
-      toast(`⏰ Reminder due: ${n.message}`, {
-        duration: 6000,
-        style: { fontWeight: 500 },
-      });
-      break;
-    case "GROUP_INVITE":
-      toast(`👥 ${n.message}`, { duration: 6000 });
-      break;
-    case "REMINDER_ASSIGNED":
-      toast(`📋 ${n.message}`, { duration: 4000 });
-      break;
-    default:
-      toast(n.message, { duration: 4000 });
-  }
+function showNotifToast(n: Notification): void {
+  const icons: Record<string, string> = {
+    REMINDER_DUE: "⏰",
+    GROUP_INVITE: "👥",
+    REMINDER_ASSIGNED: "📋",
+    SYSTEM: "🔔",
+  };
+  const icon = icons[n.type] ?? "🔔";
+  toast(`${icon} ${n.message}`, { duration: 6000 });
 }
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
+// ── Hook ──────────────────────────────────────────────────────────────────────
 
-export const useSocket = () => {
-  const { user } = useAuthStore();
-  const { prependNotification } = useNotificationStore();
-  const { updateReminder, addReminder } = useReminderStore();
-  const { setGroups } = useGroupStore();
+export const useSocket = (): void => {
+  const user = useAuthStore((s) => s.user);
 
-  // Stable ref so handlers don't go stale on re-render
+  // Stable ref — handlers close over this so they never go stale
   const userRef = useRef(user);
   useEffect(() => {
     userRef.current = user;
   }, [user]);
 
   useEffect(() => {
-    if (!user) return; // not logged in — don't register listeners
+    if (!user) return; // not authenticated — do nothing
 
     const socket = getSocket();
 
-    // ── notificationTriggered ────────────────────────────────────────────────
-    // Backend sends this from the scheduler AND from group invite flow.
-    // The payload shape varies slightly — normalise it.
-    const onNotification = (payload: NotificationPayload) => {
+    // ── notificationTriggered ──────────────────────────────────────────────
+    // The backend can send either a full Notification object or a simple shape.
+    // Normalise both, update the store, show a toast, and refresh the unread count.
+    const onNotification = (payload: NotifPayload): void => {
       if (payload.notification) {
-        // Full notification object (invitation flow)
-        prependNotification(payload.notification);
-        showNotifToast(payload.notification);
-      } else {
-        // Scheduler sends simplified shape — show a toast only
-        const title =
-          payload.title ?? payload.message ?? "You have a new notification";
-        toast(`⏰ ${title}`, { duration: 6000 });
-        // Increment unread badge without a full notification object
         useNotificationStore
           .getState()
-          .setUnreadCount(useNotificationStore.getState().unreadCount + 1);
-        // Silently refresh notifications to hydrate the panel correctly
-        notificationService
-          .getNotifications({ limit: 1 })
-          .then((r) => {
-            useNotificationStore.getState().setUnreadCount(r.unreadCount);
-          })
-          .catch(() => {
-            /* silent */
-          });
+          .prependNotification(payload.notification);
+        showNotifToast(payload.notification);
+      } else {
+        // Simplified payload from scheduler — just show toast + bump badge
+        const msg =
+          payload.title ?? payload.message ?? "You have a new notification";
+        toast(`🔔 ${msg}`, { duration: 6000 });
+        const prev = useNotificationStore.getState().unreadCount;
+        useNotificationStore.getState().setUnreadCount(prev + 1);
       }
+      // Always re-fetch unread count to keep badge accurate
+      notificationService
+        .getNotifications({ limit: 1 })
+        .then((r) =>
+          useNotificationStore.getState().setUnreadCount(r.unreadCount),
+        )
+        .catch(() => {
+          /* silent */
+        });
     };
 
-    // ── reminderCreated ──────────────────────────────────────────────────────
-    // Only add to store if the reminder is assigned to me
-    const onReminderCreated = ({ reminder }: ReminderCreatedPayload) => {
+    // ── reminderCreated ────────────────────────────────────────────────────
+    // Only add to local store if the reminder is assigned to me.
+    // This prevents group reminders for other members polluting my list.
+    const onReminderCreated = ({ reminder }: ReminderPayload): void => {
       const me = userRef.current;
       if (!me) return;
-      const myId = me.id ?? me._id;
-      const isAssigned = reminder.assignedUsers.some(
+      const myId = me.id ?? me._id ?? "";
+      const assigned = reminder.assignedUsers.some(
         (u) => (typeof u === "string" ? u : u._id) === myId,
       );
-      if (isAssigned) {
-        addReminder(reminder);
+      if (assigned) {
+        useReminderStore.getState().addReminder(reminder);
         toast(`📋 New reminder: "${reminder.title}"`, { duration: 4000 });
       }
     };
 
-    // ── reminderUpdated ──────────────────────────────────────────────────────
-    const onReminderUpdated = ({ reminder }: ReminderUpdatedPayload) => {
-      updateReminder(reminder);
+    // ── reminderUpdated ────────────────────────────────────────────────────
+    // Patch the reminder in-place. If it doesn't exist in the store yet,
+    // addReminder adds it so the view stays consistent.
+    const onReminderUpdated = ({ reminder }: ReminderPayload): void => {
+      const exists = useReminderStore
+        .getState()
+        .reminders.some((r) => r._id === reminder._id);
+      if (exists) {
+        useReminderStore.getState().updateReminder(reminder);
+      } else {
+        useReminderStore.getState().addReminder(reminder);
+      }
     };
 
-    // ── reminderCompleted ────────────────────────────────────────────────────
-    // Backend sends { reminderId } — optimistically patch status in store
+    // ── reminderCompleted ──────────────────────────────────────────────────
+    // Backend sends the full reminder object OR just the ID.
+    // Optimistically patch status in the store without a network round-trip.
     const onReminderCompleted = ({
       reminderId,
       reminder,
-    }: ReminderCompletedPayload) => {
+    }: ReminderDonePayload): void => {
       if (reminder) {
-        updateReminder(reminder);
+        useReminderStore.getState().updateReminder(reminder);
         return;
       }
       const existing = useReminderStore
         .getState()
         .reminders.find((r) => r._id === reminderId);
       if (existing) {
-        updateReminder({
+        useReminderStore.getState().updateReminder({
           ...existing,
           status: "COMPLETED",
           completedAt: new Date().toISOString(),
@@ -171,34 +161,56 @@ export const useSocket = () => {
       }
     };
 
-    // ── groupMemberAdded ─────────────────────────────────────────────────────
-    // Refresh the groups list so the new group appears immediately
-    const onGroupMemberAdded = ({ groupId }: GroupMemberAddedPayload) => {
-      toast(`👥 You were added to a group`, { duration: 5000 });
-      // Re-fetch groups silently so list is up-to-date
+    // ── reminderOverdue ────────────────────────────────────────────────────
+    // Scheduler fires this when a reminder passes its due date.
+    // Patch status to OVERDUE so the card immediately turns red.
+    const onReminderOverdue = ({
+      reminderId,
+      reminder,
+    }: ReminderOverduePayload): void => {
+      if (reminder) {
+        useReminderStore.getState().updateReminder(reminder);
+        return;
+      }
+      const existing = useReminderStore
+        .getState()
+        .reminders.find((r) => r._id === reminderId);
+      if (existing) {
+        useReminderStore
+          .getState()
+          .updateReminder({ ...existing, status: "OVERDUE" });
+      }
+    };
+
+    // ── groupMemberAdded ───────────────────────────────────────────────────
+    // Current user was added to a group. Refresh the groups list silently.
+    const onGroupMemberAdded = ({ groupId }: GroupAddedPayload): void => {
+      toast("👥 You were added to a group!", { duration: 5000 });
       groupService
         .getGroups()
-        .then((groups) => setGroups(groups))
+        .then((groups) => useGroupStore.getState().setGroups(groups))
         .catch(() => {
           /* silent */
         });
-      console.log("[Socket] groupMemberAdded", groupId);
+      console.info("[Socket] groupMemberAdded", groupId);
     };
 
-    // ── Register ─────────────────────────────────────────────────────────────
+    // ── Register all listeners ─────────────────────────────────────────────
     socket.on("notificationTriggered", onNotification);
     socket.on("reminderCreated", onReminderCreated);
     socket.on("reminderUpdated", onReminderUpdated);
     socket.on("reminderCompleted", onReminderCompleted);
+    socket.on("reminderOverdue", onReminderOverdue);
     socket.on("groupMemberAdded", onGroupMemberAdded);
 
-    // ── Cleanup ───────────────────────────────────────────────────────────────
+    // ── Cleanup ────────────────────────────────────────────────────────────
     return () => {
       socket.off("notificationTriggered", onNotification);
       socket.off("reminderCreated", onReminderCreated);
       socket.off("reminderUpdated", onReminderUpdated);
       socket.off("reminderCompleted", onReminderCompleted);
+      socket.off("reminderOverdue", onReminderOverdue);
       socket.off("groupMemberAdded", onGroupMemberAdded);
     };
-  }, [user, prependNotification, updateReminder, addReminder, setGroups]);
+  }, [user]); // re-register when user changes (login/logout)
 };

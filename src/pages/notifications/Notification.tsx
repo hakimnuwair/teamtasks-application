@@ -9,7 +9,7 @@
  * Filters: All | Unread | by Group (dropdown of user's groups)
  * Sections: Pending Invitations (top) + Notification list (filtered)
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Bell,
   CheckCheck,
@@ -93,14 +93,16 @@ function Spin() {
   );
 }
 
-// ── Inline accept / decline ───────────────────────────────────────────────────
+// ── Inline accept / decline (inside notification row) ────────────────────────
+// onDone now receives the invitationId so the page can remove it from both
+// the invitations list and mark the notification read in one go.
 
 function InviteActions({
   invitationId,
   onDone,
 }: {
   invitationId: string;
-  onDone: (accepted: boolean) => void;
+  onDone: (invitationId: string, accepted: boolean) => void;
 }) {
   const { respond } = useInvitations();
   const [busy, setBusy] = useState<"accept" | "decline" | null>(null);
@@ -109,7 +111,8 @@ function InviteActions({
     setBusy(accept ? "accept" : "decline");
     try {
       await respond(invitationId, accept);
-      onDone(accept);
+      // Signal the page with the id so it can remove the card + mark notif read
+      onDone(invitationId, accept);
     } catch {
       /* toast shown by hook */
     } finally {
@@ -156,6 +159,7 @@ function InvitationCard({
   onRespond,
 }: {
   inv: GroupInvitation;
+  // Unified callback: page removes the card and handles any side-effects
   onRespond: (id: string, accepted: boolean) => void;
 }) {
   const { respond } = useInvitations();
@@ -165,6 +169,7 @@ function InvitationCard({
     setBusy(accept ? "accept" : "decline");
     try {
       await respond(inv._id, accept, inv.groupId.name);
+      // Always call onRespond so the page removes this card immediately
       onRespond(inv._id, accept);
     } catch {
       /* toast shown by hook */
@@ -244,9 +249,12 @@ function InvitationCard({
 function NotificationRow({
   n,
   onMarkRead,
+  onInviteRespond,
 }: {
   n: Notification;
   onMarkRead: (id: string) => void;
+  // Passed down so InviteActions can bubble the invitationId back up to the page
+  onInviteRespond: (invitationId: string, accepted: boolean) => void;
 }) {
   const cfg = TYPE_CFG[n.type] ?? TYPE_CFG.SYSTEM;
   const Icon = cfg.icon;
@@ -311,10 +319,7 @@ function NotificationRow({
           </p>
         )}
         {isInvite && !n.isRead && invitationId && (
-          <InviteActions
-            invitationId={invitationId}
-            onDone={() => onMarkRead(n._id)}
-          />
+          <InviteActions invitationId={invitationId} onDone={onInviteRespond} />
         )}
         <p className="text-xs text-[#94A3B8]">{relativeTime(n.createdAt)}</p>
       </div>
@@ -344,6 +349,13 @@ export const NotificationsPage = () => {
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [groupFilter, setGroupFilter] = useState<string>("ALL");
 
+  // Local set of invitation IDs that have been responded to.
+  // This is the single source of truth for hiding cards/actions immediately,
+  // regardless of whether useInvitations' store has re-rendered yet.
+  const [respondedInvitationIds, setRespondedInvitationIds] = useState<
+    Set<string>
+  >(new Set());
+
   const {
     notifications,
     unreadCount,
@@ -364,11 +376,37 @@ export const NotificationsPage = () => {
     fetchMyInvitations();
   }, [fetchNotifications, fetchMyInvitations]);
 
-  const handleInvitationRespond = (id: string) => {
-    // useInvitations.respond already removes from list; this is for any extra side effects
-  };
+  /**
+   * Called by BOTH InvitationCard and InviteActions (via NotificationRow).
+   * Adds the id to the responded set → card disappears immediately.
+   * Also marks any related GROUP_INVITE notification as read.
+   */
+  const handleInvitationRespond = useCallback(
+    (invitationId: string, _accepted: boolean) => {
+      // Remove the invitation card immediately
+      setRespondedInvitationIds((prev) => new Set(prev).add(invitationId));
 
-  // Apply read + group filters
+      // Mark the corresponding GROUP_INVITE notification as read so the
+      // inline Accept/Decline buttons disappear from the notification list too.
+      const relatedNotification = notifications.find(
+        (n) =>
+          n.type === "GROUP_INVITE" &&
+          (n.metadata?.invitationId as string | undefined) === invitationId &&
+          !n.isRead,
+      );
+      if (relatedNotification) {
+        markAsRead(relatedNotification._id);
+      }
+    },
+    [notifications, markAsRead],
+  );
+
+  // Filter out invitations that have already been responded to in this session
+  const visibleInvitations = invitations.filter(
+    (inv) => !respondedInvitationIds.has(inv._id),
+  );
+
+  // Apply read + group filters to notifications
   const displayed = notifications
     .filter((n) => (filter === "unread" ? !n.isRead : true))
     .filter((n) => {
@@ -404,7 +442,7 @@ export const NotificationsPage = () => {
       </div>
 
       {/* Pending Invitations */}
-      {!invLoading && invitations.length > 0 && (
+      {!invLoading && visibleInvitations.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Mail className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
@@ -412,11 +450,11 @@ export const NotificationsPage = () => {
               Pending Invitations
             </h3>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-600 text-white shadow-[0_0_8px_rgba(79,70,229,0.40)]">
-              {invitations.length}
+              {visibleInvitations.length}
             </span>
           </div>
           <div className="space-y-2.5">
-            {invitations.map((inv) => (
+            {visibleInvitations.map((inv) => (
               <InvitationCard
                 key={inv._id}
                 inv={inv}
@@ -556,7 +594,12 @@ export const NotificationsPage = () => {
       ) : (
         <div className="space-y-2.5">
           {displayed.map((n) => (
-            <NotificationRow key={n._id} n={n} onMarkRead={markAsRead} />
+            <NotificationRow
+              key={n._id}
+              n={n}
+              onMarkRead={markAsRead}
+              onInviteRespond={handleInvitationRespond}
+            />
           ))}
         </div>
       )}

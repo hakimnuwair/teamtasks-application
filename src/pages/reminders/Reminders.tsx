@@ -266,7 +266,7 @@ function ReminderCard({
             return (
               <span
                 key={u._id}
-                title={`${u.name}${isMe ? " (you)" : ""}: ${done ? "completed" : "pending"}`}
+                title={`${u.name ?? "Unknown"}${isMe ? " (you)" : ""}: ${done ? "completed" : "pending"}`}
                 className={cn(
                   "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium",
                   done
@@ -280,7 +280,7 @@ function ReminderCard({
                 ) : (
                   <Circle className="w-2.5 h-2.5 opacity-50" />
                 )}
-                {u.name.split(" ")[0]}
+                {(u.name ?? "?").split(" ")[0]}
                 {isMe ? " (you)" : ""}
               </span>
             );

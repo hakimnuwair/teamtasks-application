@@ -1,28 +1,23 @@
 /**
- * config/socket.ts — Socket.io singleton.
+ * src/config/socket.ts
  *
- * BUGS FIXED:
- *  1. Wrong port: always derive BASE_URL from VITE_API_BASE_URL (strip /api/v1).
- *     Do NOT use VITE_SOCKET_URL — it was causing port 5001 fallback.
- *  2. Double "join" emit: connectSocket() no longer emits join directly.
- *     The "connect" event handler is the single source of truth.
- *     This prevents the duplicate "join" visible in browser devtools.
+ * SINGLETON SOCKET — one instance for the entire app lifetime.
  *
- * Backend MUST have this handler in server.js (see backend-socket-setup.md):
- *   io.on("connection", socket => {
- *     socket.on("join", userId => socket.join(String(userId)));
- *   });
+ * Rules:
+ *   - Created lazily on first getSocket() call
+ *   - autoConnect: false — we connect ONLY after auth succeeds
+ *   - transports: ["websocket"] — skip long-polling, instant connection
+ *   - Stores userId so "join" is re-emitted automatically after reconnect
+ *   - disconnectSocket() wipes the singleton so next login gets a fresh instance
  */
-
 import { io, type Socket } from "socket.io-client";
 
-// Always strip /api/v1 from the API base URL to get the socket server URL.
-// Never use a separate VITE_SOCKET_URL — it caused the port 5001 bug.
-const BASE_URL = (() => {
-  const apiBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
-  if (apiBase) return apiBase.replace(/\/api\/v1\/?$/, "");
-  return "http://localhost:5000";
-})();
+const BASE_URL =
+  import.meta.env.VITE_SOCKET_URL ??
+  (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5000").replace(
+    /\/api\/v1\/?$/,
+    "",
+  );
 
 let socket: Socket | null = null;
 let _userId: string | null = null;
@@ -39,38 +34,35 @@ export const getSocket = (): Socket => {
       reconnectionDelayMax: 5000,
     });
 
-    // Single place where "join" is emitted — on every (re)connect.
+    // Re-join personal room after any reconnect (network drop, server restart)
     socket.on("connect", () => {
-      console.log("[Socket] Connected:", socket!.id);
       if (_userId) socket!.emit("join", _userId);
     });
 
-    socket.on("disconnect", (reason) => {
-      console.log("[Socket] Disconnected:", reason);
+    socket.on("connect_error", (err) => {
+      console.warn("[Socket] connect error:", err.message);
     });
 
-    socket.on("connect_error", (err) => {
-      console.warn("[Socket] Connection error:", err.message);
+    socket.on("disconnect", (reason) => {
+      console.info("[Socket] disconnected:", reason);
     });
   }
   return socket;
 };
 
-/** Called after login or session restore. Connects and joins the user's room. */
+/** Call immediately after login / session restore. */
 export const connectSocket = (userId: string): void => {
   _userId = userId;
   const s = getSocket();
   if (!s.connected) {
     s.connect();
-    // NOTE: do NOT emit "join" here. The "connect" event handler does it.
-    // Emitting here as well causes the double-join bug visible in devtools.
   } else {
-    // Already connected (e.g. reconnected before userId was set) — emit now
+    // Already connected (e.g. token refresh) — re-join room to be safe
     s.emit("join", userId);
   }
 };
 
-/** Called on logout. Disconnects and clears the singleton so next login gets a fresh socket. */
+/** Call on logout. Tears down the connection and wipes the singleton. */
 export const disconnectSocket = (): void => {
   _userId = null;
   if (socket) {
