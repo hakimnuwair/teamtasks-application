@@ -228,6 +228,7 @@ function ResetStep({
         <Field label="Reset Token" error={errors.token?.message}>
           <Input
             type="text"
+            autoComplete="one-time-code"
             placeholder="Paste token from your email"
             error={!!errors.token}
             leftIcon={<KeyRound className="w-4 h-4" />}
