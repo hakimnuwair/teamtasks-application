@@ -32,11 +32,13 @@ import { ProfilePage } from "./pages/profile/Profile";
 import { useAuthStore } from "./store/authStore";
 import { useUIStore } from "./store/uiStore";
 import { ROUTES } from "./config/routes";
+import { ResetPasswordPage } from "./pages/auth/ResetPassword";
 
 const SKIP_INIT_PATHS = [
   "/login",
   "/register",
   "/forgot-password",
+  "/reset-password",
   "/auth/callback",
 ];
 
@@ -75,6 +77,7 @@ export default function App() {
             path={ROUTES.FORGOT_PASSWORD}
             element={<ForgotPasswordPage />}
           />
+          <Route path={ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
         </Route>
 
         {/* Protected app pages */}
