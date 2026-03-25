@@ -195,3 +195,12 @@ export interface GroupInvitation {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface SentInvite {
+  id: string;
+  email: string;
+  name: string;
+  role: GroupRole;
+  status: "PENDING" | "DECLINED" | "CANCELLED";
+  sentAt: string;
+}

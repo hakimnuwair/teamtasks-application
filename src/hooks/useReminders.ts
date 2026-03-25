@@ -1,13 +1,10 @@
 /**
  * hooks/useReminders.ts
  *
- * Single source of truth for reminder data.
- * Components never call reminderService directly — they call this hook.
- *
- * Architecture: Component → useReminders → reminderStore ← reminderService
- *
- * When filters.groupId is set → GET /groups/:id/reminders (group-scoped)
- * Otherwise                   → GET /reminders (all for current user)
+ * Fix: fetchReminders reads filters via getState() instead of closing over
+ * the memoized `filters` value — this eliminates the stale-closure race where
+ * setFilters updates Zustand but the in-flight useCallback still holds the
+ * previous filters snapshot.
  */
 import { useEffect, useCallback } from "react";
 import { useReminderStore } from "../store/reminderStore";
@@ -23,34 +20,71 @@ export const useReminders = () => {
     pagination,
     isLoading,
     error,
+    setFilters: storeSetFilters,
     setReminders,
-    setFilters,
     setLoading,
     setError,
   } = useReminderStore();
 
+  // ✅ No dependency on `filters` — always reads the latest value via getState()
   const fetchReminders = useCallback(async () => {
+    // Read the current filters snapshot at call-time, not at memo-creation-time
+    const currentFilters = useReminderStore.getState().filters;
+
     setLoading(true);
     setError(null);
     try {
-      const result = filters.groupId
-        ? await reminderService.getGroupReminders(filters.groupId, {
-            status: filters.status,
-            priority: filters.priority,
-            page: filters.page,
-            limit: filters.limit,
+      const result = currentFilters.groupId
+        ? await reminderService.getGroupReminders(currentFilters.groupId, {
+            status: currentFilters.status,
+            priority: currentFilters.priority,
+            page: currentFilters.page,
+            limit: currentFilters.limit,
           })
-        : await reminderService.getReminders(filters);
+        : await reminderService.getReminders(currentFilters);
       setReminders(result.reminders, result.pagination);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load reminders");
     } finally {
       setLoading(false);
     }
-  }, [filters, setReminders, setLoading, setError]);
+  }, [setReminders, setLoading, setError]); // ✅ stable deps only — never re-created on filter change
+
+  // ✅ setFilters now updates the store AND immediately triggers a fresh fetch
+  // with the merged filters in one atomic step, eliminating the timing gap.
+  const setFilters = useCallback(
+    async (partial: Parameters<typeof storeSetFilters>[0]) => {
+      storeSetFilters(partial);
+      // Merge manually so we can pass the complete new filters to the fetch
+      // instead of waiting for Zustand's async re-render to propagate.
+      const merged = { ...useReminderStore.getState().filters, ...partial };
+      setLoading(true);
+      setError(null);
+      try {
+        const result = merged.groupId
+          ? await reminderService.getGroupReminders(merged.groupId, {
+              status: merged.status,
+              priority: merged.priority,
+              page: merged.page,
+              limit: merged.limit,
+            })
+          : await reminderService.getReminders(merged);
+        setReminders(result.reminders, result.pagination);
+      } catch (err: unknown) {
+        setError(
+          err instanceof Error ? err.message : "Failed to load reminders",
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [storeSetFilters, setReminders, setLoading, setError],
+  );
 
   useEffect(() => {
     fetchReminders();
+    // fetchReminders is stable (no filter deps), so this only runs on mount.
+    // All subsequent fetches are triggered explicitly via setFilters or action callbacks.
   }, [fetchReminders]);
 
   const complete = async (id: string) => {
@@ -64,8 +98,6 @@ export const useReminders = () => {
   };
 
   const remove = async (id: string) => {
-    // Throws on failure so callers (e.g. DeleteConfirmModal) can display the error.
-    // On success, re-fetches and shows a toast.
     await reminderService.deleteReminder(id);
     toast.success("Reminder deleted");
     await fetchReminders();
@@ -83,7 +115,7 @@ export const useReminders = () => {
     pagination,
     isLoading,
     error,
-    setFilters,
+    setFilters, // now the wrapped version that fetches immediately
     fetchReminders,
     complete,
     remove,

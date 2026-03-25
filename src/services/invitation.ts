@@ -1,10 +1,5 @@
 /**
  * services/invitation.ts
- *
- * POST /invitations/groups/:id/invite → { success, message, ...invitationFields }  (201, object flat)
- * GET  /invitations/me                → { success, message, data: GroupInvitation[] } (array → body.data)
- * PATCH /invitations/:id/respond      → { success, message, ...resultFields }
- * PATCH /invitations/:id/cancel       → { success, message }
  */
 import api from "../config/axios";
 import type { GroupInvitation, InviteMemberPayload } from "../types/types";
@@ -25,7 +20,26 @@ export const getMyInvitations = async (): Promise<GroupInvitation[]> => {
     message: string;
     data: GroupInvitation[];
   }>("/invitations/me");
-  return data.data ?? [];
+  // Always unwrap the nested data array — never return the wrapper object
+  return Array.isArray(data?.data) ? data.data : [];
+};
+
+/**
+ * GET /groups/:groupId/invitations
+ * Response shape: { success: true, data: GroupInvitation[] }
+ *
+ * IMPORTANT: unwrap data.data, not data — axios puts the whole response
+ * body in res.data, so the array lives at res.data.data.
+ */
+export const getSentInvitationsForGroup = async (
+  groupId: string,
+): Promise<GroupInvitation[]> => {
+  const { data } = await api.get<{
+    success: boolean;
+    data: GroupInvitation[];
+  }>(`/groups/${groupId}/invitations`);
+  // data here is { success, data: [...] } — return the inner array
+  return Array.isArray(data?.data) ? data.data : [];
 };
 
 export const respondToInvitation = async (

@@ -1,47 +1,69 @@
 /**
  * hooks/useGroupDetail.ts
- *
- * Encapsulates all data-fetching for a single group's detail view.
- * GroupDetailPage uses this hook — it never calls groupService,
- * reminderService, or invitationService directly.
- *
- * Architecture: GroupDetailPage → useGroupDetail → services → backend
- *
- * Note: Group detail data lives in this hook's local state (not groupStore),
- * because it holds full nested detail (members populated, reminders, etc.)
- * that is separate from the global groups list used by the sidebar and modal.
  */
 import { useState, useCallback } from "react";
 import * as groupService from "../services/group";
 import * as reminderService from "../services/reminder";
 import * as invitationService from "../services/invitation";
 import toast from "react-hot-toast";
-import type { Group, Reminder, GroupInvitation } from "../types/types";
+import type {
+  Group,
+  Reminder,
+  GroupInvitation,
+  SentInvite,
+} from "../types/types";
+
+function mapToSentInvite(inv: GroupInvitation): SentInvite {
+  const invitedUser = inv.invitedUser as
+    | { _id: string; name: string; email: string }
+    | string
+    | undefined;
+  return {
+    id: inv._id,
+    email: typeof invitedUser === "object" ? (invitedUser?.email ?? "") : "",
+    name:
+      typeof invitedUser === "object"
+        ? (invitedUser?.name ?? "Unknown")
+        : "Unknown",
+    role: inv.role,
+    status: inv.status as "PENDING" | "DECLINED" | "CANCELLED",
+    sentAt: inv.createdAt,
+  };
+}
 
 export const useGroupDetail = (id: string | undefined) => {
   const [group, setGroup] = useState<Group | null>(null);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [myInvitations, setMyInvitations] = useState<GroupInvitation[]>([]);
+  const [sentInvites, setSentInvites] = useState<SentInvite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
-  /** Load group + reminders + invitations in parallel */
   const load = useCallback(async () => {
     if (!id) return;
     setIsLoading(true);
     try {
-      const [g, r, invs] = await Promise.all([
+      const [g, r, invs, sentInvsRaw] = await Promise.all([
         groupService.getGroupById(id),
         reminderService.getGroupReminders(id),
         invitationService
           .getMyInvitations()
           .catch(() => [] as GroupInvitation[]),
+        invitationService
+          .getSentInvitationsForGroup(id)
+          .catch(() => [] as GroupInvitation[]),
       ]);
       setGroup(g);
-      setReminders(r.reminders);
-      setMyInvitations(invs);
+      setReminders(Array.isArray(r?.reminders) ? r.reminders : []);
+      setMyInvitations(Array.isArray(invs) ? invs : []);
+      const validSent = Array.isArray(sentInvsRaw) ? sentInvsRaw : [];
+      setSentInvites(
+        validSent
+          .filter((inv) => inv.status !== "ACCEPTED")
+          .map(mapToSentInvite),
+      );
     } catch {
       throw new Error("Failed to load group");
     } finally {
@@ -49,21 +71,35 @@ export const useGroupDetail = (id: string | undefined) => {
     }
   }, [id]);
 
-  /** Re-fetch only the reminders list (after create / complete) */
   const reloadReminders = useCallback(async () => {
     if (!id) return;
-    const r = await reminderService.getGroupReminders(id).catch(() => null);
-    if (r) setReminders(r.reminders);
+    try {
+      const r = await reminderService.getGroupReminders(id);
+      setReminders(Array.isArray(r?.reminders) ? r.reminders : []);
+    } catch {
+      /* silent */
+    }
   }, [id]);
 
-  /** Re-fetch only the group detail (after member add/remove) */
   const reloadGroup = useCallback(async () => {
     if (!id) return;
     const g = await groupService.getGroupById(id).catch(() => null);
     if (g) setGroup(g);
   }, [id]);
 
-  /** Mark a reminder complete for the current user */
+  const reloadSentInvites = useCallback(async () => {
+    if (!id) return;
+    try {
+      const data = await invitationService.getSentInvitationsForGroup(id);
+      const valid = Array.isArray(data) ? data : [];
+      setSentInvites(
+        valid.filter((inv) => inv.status !== "ACCEPTED").map(mapToSentInvite),
+      );
+    } catch {
+      /* non-critical */
+    }
+  }, [id]);
+
   const completeReminder = useCallback(
     async (reminderId: string) => {
       setCompletingId(reminderId);
@@ -82,7 +118,6 @@ export const useGroupDetail = (id: string | undefined) => {
     [reloadReminders],
   );
 
-  /** Remove a member from the group */
   const removeMember = useCallback(
     async (memberId: string) => {
       if (!group) return;
@@ -102,7 +137,6 @@ export const useGroupDetail = (id: string | undefined) => {
     [group, reloadGroup],
   );
 
-  /** Respond to own pending invitation */
   const respondToInvitation = useCallback(
     async (invId: string, accept: boolean) => {
       try {
@@ -121,7 +155,6 @@ export const useGroupDetail = (id: string | undefined) => {
     [reloadGroup],
   );
 
-  /** Cancel a sent invitation */
   const cancelInvitation = useCallback(async (invId: string) => {
     setCancellingId(invId);
     try {
@@ -134,7 +167,6 @@ export const useGroupDetail = (id: string | undefined) => {
     }
   }, []);
 
-  /** Send a single invitation — used by InviteModal */
   const sendInvitation = useCallback(
     async (
       groupId: string,
@@ -153,9 +185,12 @@ export const useGroupDetail = (id: string | undefined) => {
     completingId,
     removingId,
     cancellingId,
+    sentInvites,
+    setSentInvites,
     load,
     reloadReminders,
     reloadGroup,
+    reloadSentInvites,
     completeReminder,
     removeMember,
     respondToInvitation,

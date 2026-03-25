@@ -61,19 +61,12 @@ import type {
   Reminder,
   GroupInvitation,
   InvitationStatus,
+  SentInvite,
 } from "../../types/types";
 
 // ─── Locally-tracked sent invitations ────────────────────────────────────────
 // The backend has no "list invitations I sent" endpoint, so we track
 // these locally after each invite batch in state.
-interface SentInvite {
-  id: string;
-  email: string;
-  name: string;
-  role: GroupRole;
-  status: "PENDING" | "DECLINED" | "CANCELLED";
-  sentAt: string;
-}
 
 // ─── Inline spinner ───────────────────────────────────────────────────────────
 
@@ -931,9 +924,10 @@ export const GroupDetailPage = () => {
     cancelInvitation,
     sendInvitation,
     setMyInvitations,
+    sentInvites,
+    setSentInvites,
   } = useGroupDetail(id);
 
-  const [sentInvites, setSentInvites] = useState<SentInvite[]>([]);
   const [activeTab, setActiveTab] = useState<"reminders" | "members">(
     "reminders",
   );
@@ -972,14 +966,20 @@ export const GroupDetailPage = () => {
   };
 
   const handleInviteDone = (newSent: SentInvite[]) => {
-    setSentInvites((prev) => [...newSent, ...prev]);
+    setSentInvites((prev) => {
+      const existingIds = new Set(prev.map((i) => i.id));
+      const fresh = newSent.filter((i) => !existingIds.has(i.id));
+      return [...fresh, ...prev];
+    });
     setInviteOpen(false);
     if (newSent.length > 0) setActiveTab("members");
   };
 
   const handleCancelSentInvite = async (invId: string) => {
     await cancelInvitation(invId);
-    setSentInvites((prev) => prev.filter((i) => i.id !== invId));
+    setSentInvites((prev) =>
+      prev.map((i) => (i.id === invId ? { ...i, status: "CANCELLED" } : i)),
+    );
   };
 
   // ── Loading / guard ───────────────────────────────────────────────────────
