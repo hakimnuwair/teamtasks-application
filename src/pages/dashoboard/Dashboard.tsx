@@ -11,7 +11,7 @@
  * Filters (group, priority, time range) narrow the stats shown.
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CheckCircle2,
@@ -30,9 +30,11 @@ import {
   LayoutDashboard,
   CheckSquare,
   X,
+  Mail,
+  XCircle,
 } from "lucide-react";
 import { cn } from "../../utils/cn";
-import { Button, Avatar, Spinner, EmptyState, Card } from "../../components/ui";
+import { Button, Spinner, EmptyState, Card } from "../../components/ui";
 import { CreateReminderModal } from "../../components/modal/CreateReminderModal";
 import { CreateGroupModal } from "../../components/modal/CreateGroupModal";
 import * as reminderService from "../../services/reminder";
@@ -180,6 +182,26 @@ const ACT_CFG: Record<
     color:
       "bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.18)] text-indigo-600 dark:text-indigo-400",
     icon: Users,
+  },
+  GROUP_INVITATION_SENT: {
+    verb: "sent a group invitation",
+    color: "text-indigo-500",
+    icon: Mail,
+  },
+  GROUP_INVITATION_ACCEPTED: {
+    verb: "accepted a group invitation",
+    color: "text-teal-500",
+    icon: CheckCircle2,
+  },
+  GROUP_INVITATION_DECLINED: {
+    verb: "declined a group invitation",
+    color: "text-rose-500",
+    icon: XCircle,
+  },
+  GROUP_INVITATION_CANCELLED: {
+    verb: "cancelled a group invitation",
+    color: "text-slate-400",
+    icon: X,
   },
   DEFAULT: {
     verb: "performed action",

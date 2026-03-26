@@ -50,7 +50,7 @@ export const DashboardPage = () => (
           color: "text-teal-600 dark:text-teal-400",
           bg: "bg-teal-50 dark:bg-teal-500/12",
         },
-      ].map(({ label, count, color, bg }) => (
+      ].map(({ label, count, color }) => (
         <Card key={label} glass className="text-center">
           <div className={`text-3xl font-bold mb-1 ${color}`}>{count}</div>
           <div className="text-xs text-[#94A3B8] uppercase tracking-widest">

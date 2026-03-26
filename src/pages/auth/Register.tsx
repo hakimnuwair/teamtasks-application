@@ -136,7 +136,6 @@ export const RegisterPage = () => {
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
-  const [watchedPassword, setWatchedPassword] = useState("");
 
   const {
     register,

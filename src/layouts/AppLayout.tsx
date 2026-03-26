@@ -24,12 +24,10 @@ import {
   LogOut,
   ChevronLeft,
   Clock,
-  Sun,
   Moon,
   Menu,
   X,
   SunMedium,
-  Sunrise,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useSocket } from "../hooks/useSocket";

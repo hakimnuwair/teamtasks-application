@@ -15,7 +15,7 @@
  *   - CreateReminderModal receives defaultGroupId={group._id}
  *   - onCreated callback calls reloadReminders() for immediate update
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -32,7 +32,6 @@ import {
   CheckSquare,
   Mail,
   X,
-  RotateCcw,
   ChevronDown,
   Check,
 } from "lucide-react";
@@ -917,13 +916,11 @@ export const GroupDetailPage = () => {
     cancellingId,
     load,
     reloadReminders,
-    reloadGroup,
     completeReminder,
     removeMember,
     respondToInvitation,
     cancelInvitation,
     sendInvitation,
-    setMyInvitations,
     sentInvites,
     setSentInvites,
   } = useGroupDetail(id);
