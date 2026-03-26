@@ -14,11 +14,10 @@
 */
 
 @import "tailwindcss";
-
-@variant dark (&:where(.dark, .dark *));
-
 /* ── Google Fonts ──────────────────────────────────────────────────────────── */
 @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap");
+
+@variant dark (&:where(.dark, .dark *));
 
 /* ── Tailwind v4 theme configuration ──────────────────────────────────────── */
 @theme {
