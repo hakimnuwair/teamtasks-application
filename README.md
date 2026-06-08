@@ -2,7 +2,7 @@
 
 A fully responsive team productivity SPA built with React + TypeScript. Features real-time notifications, role-based dashboards, task boards, analytics, dark/light mode, and activity logs.
 
-**Live Demo →** [teamtasks.vercel.app](https://teamtasks.vercel.app) &nbsp;|&nbsp; **Backend Repo →** [teamtasks-backend](https://github.com/hakimnuwair/teamtasks-backend)
+**Live Demo →** [teamtasks-application.vercel.app](https://teamtasks-application.vercel.app/) &nbsp;|&nbsp; **Backend Repo →** [teamtasks-backend](https://github.com/hakimnuwair/teamtasks-backend)
 
 ---
 
