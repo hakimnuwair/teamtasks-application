@@ -1,73 +1,148 @@
-# React + TypeScript + Vite
+# TeamTasks — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A fully responsive team productivity SPA built with React + TypeScript. Features real-time notifications, role-based dashboards, task boards, analytics, dark/light mode, and activity logs.
 
-Currently, two official plugins are available:
+**Live Demo →** [teamtasks.vercel.app](https://teamtasks.vercel.app) &nbsp;|&nbsp; **Backend Repo →** [teamtasks-backend](https://github.com/hakimnuwair/teamtasks-backend)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Layer            | Technology            |
+| ---------------- | --------------------- |
+| Framework        | React 19 + TypeScript |
+| Build Tool       | Vite 7                |
+| Styling          | Tailwind CSS v4       |
+| State Management | Zustand               |
+| Routing          | React Router v7       |
+| Forms            | React Hook Form + Zod |
+| Real-time        | Socket.io Client      |
+| HTTP Client      | Axios                 |
+| Icons            | Lucide React          |
+| Notifications    | React Hot Toast       |
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Features
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- **Role-Based Dashboards** — distinct views for Admin, Manager, and Member roles
+- **Task Boards** — assign, track, and update tasks with status columns
+- **Real-time Updates** — instant notifications and deadline alerts via Socket.io
+- **Analytics Dashboard** — visual activity summaries and productivity metrics
+- **Activity Logs** — full audit trail of team actions
+- **Dark / Light Mode** — persisted theme preference
+- **Group Management** — create groups, invite members via invitation flow
+- **Reminders** — set and receive task reminders
+- **Google OAuth** — sign in with Google alongside JWT auth
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+---
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Project Structure
+
+```
+src/
+├── components/
+│   ├── common/        # Shared UI components
+│   ├── modal/         # Modal components
+│   ├── reminders/     # Reminder-specific components
+│   └── ui/            # Base UI primitives
+├── hooks/             # Custom React hooks
+├── layouts/           # Page layout wrappers
+├── lib/               # Utility libraries (axios instance, socket)
+├── pages/
+│   ├── auth/          # Login / Register
+│   ├── dashboard/     # Main dashboard
+│   ├── groups/        # Group management
+│   ├── notifications/ # Notification centre
+│   ├── profile/       # User profile
+│   ├── reminders/     # Reminders view
+│   └── activity/      # Activity logs
+├── services/          # API service functions
+├── store/             # Zustand global state
+├── types/             # TypeScript type definitions
+└── utils/             # Helper utilities
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Getting Started
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Prerequisites
+
+- Node.js v18+
+- [teamtasks-backend](https://github.com/hakimnuwair/teamtasks-backend) running locally
+
+### Installation
+
+```bash
+# Clone the repo
+git clone https://github.com/hakimnuwair/teamtasks-application.git
+cd teamtasks-application
+
+# Install dependencies
+npm install
 ```
+
+### Environment Variables
+
+Create a `.env` file in the root:
+
+```env
+VITE_API_BASE_URL=http://localhost:5001/api/v1
+VITE_SOCKET_URL=http://localhost:5001
+VITE_APP_NAME=TeamTasks
+VITE_APP_ENV=development
+```
+
+### Running Locally
+
+```bash
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+The app will be available at `http://localhost:5173`.
+
+---
+
+## Scripts
+
+| Command           | Description                       |
+| ----------------- | --------------------------------- |
+| `npm run dev`     | Start Vite dev server             |
+| `npm run build`   | Type-check + build for production |
+| `npm run lint`    | Run ESLint                        |
+| `npm run preview` | Preview production build locally  |
+
+---
+
+## Deployment
+
+This project is deployed on **Vercel** with CI/CD connected to the main branch. Every push to `main` triggers an automatic deployment.
+
+To deploy your own instance:
+
+1. Push the repo to GitHub
+2. Import it in [Vercel](https://vercel.com)
+3. Add the environment variables from the `.env` section above
+4. Deploy
+
+---
+
+## Related Repositories
+
+- **Backend API** — [teamtasks-backend](https://github.com/hakimnuwair/teamtasks-backend) (Node.js / Express / MongoDB / Socket.io)
+
+---
+
+## Author
+
+**Nuwair Hakim** — Full-Stack Developer
+
+[LinkedIn](https://linkedin.com/in/hakimnuwair) · [GitHub](https://github.com/hakimnuwair) · [Portfolio](https://nuwairportfolio.vercel.app)
