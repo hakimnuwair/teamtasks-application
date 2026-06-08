@@ -6,6 +6,16 @@ A fully responsive team productivity SPA built with React + TypeScript. Features
 
 ---
 
+## What is TeamTasks?
+
+Managing tasks across a team is messy — deadlines get missed, accountability is unclear, and updates scatter across chat threads. TeamTasks solves this by giving teams a single place to assign work, track progress, and stay in sync in real time.
+
+**The core problem it solves:** Teams need shared visibility into who is doing what and by when — without relying on chasing people over messages. TeamTasks provides role-based dashboards so each member sees exactly what's relevant to them, a task board to track status at a glance, and real-time Socket.io notifications so nobody misses a deadline or update.
+
+Built as a full MERN stack SPA, this repo is the React + TypeScript frontend — handling all UI, routing, state, and real-time communication with the backend.
+
+---
+
 ## Tech Stack
 
 | Layer            | Technology            |
