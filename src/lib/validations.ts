@@ -69,6 +69,38 @@ export const createReminderSchema = z.object({
 
 export type CreateReminderFormData = z.infer<typeof createReminderSchema>;
 
+// ─── SUB-REMINDER ─────────────────────────────────────────────────────────────
+// No recurrence/groupId — sub-reminders don't recur and inherit groupId from the parent.
+
+export const createSubReminderSchema = z.object({
+  title: z
+    .string()
+    .min(1, "Title is required")
+    .max(200, "Title must be under 200 characters")
+    .transform((s) => s.trim()),
+
+  description: z
+    .string()
+    .max(1000, "Description must be under 1000 characters")
+    .optional()
+    .transform((s) => s?.trim() || undefined),
+
+  dueDateTime: z
+    .string()
+    .min(1, "Due date & time is required")
+    .refine((val) => !isNaN(Date.parse(val)), "Invalid date format")
+    .refine(
+      (val) => new Date(val) > new Date(),
+      "Due date must be in the future",
+    ),
+
+  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).default("MEDIUM"),
+});
+
+export type CreateSubReminderFormData = z.infer<
+  typeof createSubReminderSchema
+>;
+
 // ─── GROUP ────────────────────────────────────────────────────────────────────
 
 export const createGroupSchema = z.object({

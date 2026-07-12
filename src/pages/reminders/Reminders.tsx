@@ -3,20 +3,19 @@
  *
  * Architecture: RemindersPage → useReminders + useGroups (hooks) → stores → services
  *
- * Fix: ReminderCard shows per-user completion state correctly:
- *   - Top-level status COMPLETED = all members done → grey strikethrough
- *   - Current user completed but others haven't → teal checkmark + "You completed" badge
- *   - Not completed yet → interactive circle toggle
+ * ReminderCard is a read-only overview item — clicking it navigates to
+ * /reminders/:id (ReminderDetailPage), which is the single place to
+ * complete/delete a reminder and manage its sub-reminders.
  *
  * Group filter: ALL | personal | specific group
  * Clear filters: single button resets all filters to defaults.
  */
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Plus,
   CheckCircle2,
   Circle,
-  Trash2,
   Clock,
   AlertTriangle,
   ChevronLeft,
@@ -33,7 +32,6 @@ import {
   Button,
   Badge,
   AvatarStack,
-  Spinner,
   EmptyState,
   Card,
   FAB,
@@ -42,8 +40,6 @@ import { CreateReminderModal } from "../../components/modal/CreateReminderModal"
 import { cn } from "../../utils/cn";
 import { formatDueDate, isOverdue } from "../../utils/formatDate";
 import type { Reminder, ReminderStatus, Priority } from "../../types/types";
-import { DeleteConfirmModal } from "../../components/modal/DeleteConfirmationModal";
-import { parseApiError } from "../../config/axios";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -73,19 +69,10 @@ const PRIORITY_OPTIONS: { label: string; value: Priority | "ALL" }[] = [
 
 interface ReminderCardProps {
   reminder: Reminder;
-  onComplete: (id: string) => void;
-  onDelete: (id: string) => void;
-  isCompleting: boolean;
-  isDeleting: boolean;
 }
 
-function ReminderCard({
-  reminder,
-  onComplete,
-  onDelete,
-  isCompleting,
-  isDeleting,
-}: ReminderCardProps) {
+function ReminderCard({ reminder }: ReminderCardProps) {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const myId = user?.id ?? user?._id ?? "";
   const overdue = isOverdue(reminder.dueDateTime, reminder.status);
@@ -127,8 +114,9 @@ function ReminderCard({
 
   return (
     <article
+      onClick={() => navigate(`/reminders/${reminder._id}`)}
       className={cn(
-        "group relative flex flex-col gap-0 rounded-xl border transition-all duration-[250ms] ease-in-out overflow-hidden",
+        "group relative flex flex-col gap-0 rounded-xl border cursor-pointer transition-all duration-[250ms] ease-in-out overflow-hidden",
         !overdue &&
           "bg-white dark:bg-[#161B22] border-[#E2E6ED] dark:border-[#21262D]",
         overdue &&
@@ -144,35 +132,30 @@ function ReminderCard({
     >
       {/* Main row */}
       <div className="flex items-start gap-4 p-5">
-        {/* Complete toggle */}
-        <button
-          onClick={() => !iDone && onComplete(reminder._id)}
-          disabled={iDone || isCompleting}
+        {/* Completion status — read-only, action moved to Reminder Details */}
+        <span
           title={
-            iDone
-              ? globalDone
-                ? "Everyone completed"
-                : "You completed this"
-              : "Mark as complete"
+            globalDone
+              ? "Everyone completed"
+              : iDone
+                ? "You completed this"
+                : "Not completed yet"
           }
           className={cn(
-            "mt-0.5 shrink-0 transition-all duration-[250ms]",
+            "mt-0.5 shrink-0",
             globalDone
-              ? "text-emerald-500 cursor-default"
+              ? "text-emerald-500"
               : iDone
-                ? "text-teal-500 cursor-default"
-                : "text-[#C8CDD8] dark:text-[#30363D] hover:text-indigo-600 dark:hover:text-indigo-400 hover:scale-110",
-            "disabled:opacity-50",
+                ? "text-teal-500"
+                : "text-[#C8CDD8] dark:text-[#30363D]",
           )}
         >
-          {isCompleting ? (
-            <Spinner size="sm" />
-          ) : globalDone || iDone ? (
+          {globalDone || iDone ? (
             <CheckCircle2 className="w-5 h-5" />
           ) : (
             <Circle className="w-5 h-5" />
           )}
-        </button>
+        </span>
 
         {/* Content */}
         <div className="flex-1 min-w-0">
@@ -243,18 +226,6 @@ function ReminderCard({
             )}
           </div>
         </div>
-
-        {/* Delete */}
-        <button
-          onClick={() => onDelete(reminder._id)}
-          disabled={isDeleting}
-          className={cn(
-            "shrink-0 mt-0.5 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-[250ms]",
-            "text-[#C8CDD8] dark:text-[#30363D] hover:bg-[#FFF1F2] dark:hover:bg-[rgba(244,63,94,0.10)] hover:text-[#F43F5E] disabled:opacity-50",
-          )}
-        >
-          {isDeleting ? <Spinner size="sm" /> : <Trash2 className="w-4 h-4" />}
-        </button>
       </div>
 
       {/* Per-member completion strip — only for group reminders with assigned users */}
@@ -316,11 +287,6 @@ function ReminderSkeleton() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const RemindersPage = () => {
-  const [deleteTarget, setDeleteTarget] = useState<{
-    id: string;
-    title: string;
-  } | null>(null);
-  const [completingId, setCompletingId] = useState<string | null>(null);
   const [activeStatus, setActiveStatus] = useState<ReminderStatus | "ALL">(
     "ALL",
   );
@@ -328,15 +294,7 @@ export const RemindersPage = () => {
   const [activeGroup, setActiveGroup] = useState<string>("ALL");
   const [createOpen, setCreateOpen] = useState(false);
 
-  const {
-    reminders,
-    pagination,
-    isLoading,
-    error,
-    setFilters,
-    complete,
-    remove,
-  } = useReminders();
+  const { reminders, pagination, isLoading, error, setFilters } = useReminders();
   const { groups } = useGroups();
 
   // Check if any filter is active
@@ -373,28 +331,6 @@ export const RemindersPage = () => {
       groupId: undefined,
       page: 1,
     });
-  };
-
-  const handleComplete = async (id: string) => {
-    setCompletingId(id);
-    await complete(id);
-    setCompletingId(null);
-  };
-
-  const handleDelete = (id: string) => {
-    const reminder = reminders.find((r) => r._id === id);
-    setDeleteTarget({ id, title: reminder?.title ?? "this reminder" });
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget) return;
-    try {
-      await remove(deleteTarget.id);
-    } catch (err: unknown) {
-      // Re-throw with the real backend error message so DeleteConfirmModal can display it
-      throw new Error(parseApiError(err, "Could not delete reminder"));
-    }
-    setDeleteTarget(null);
   };
 
   const handlePageChange = (page: number) => {
@@ -585,14 +521,7 @@ export const RemindersPage = () => {
       ) : (
         <div className="space-y-3">
           {displayedReminders.map((reminder) => (
-            <ReminderCard
-              key={reminder._id}
-              reminder={reminder}
-              onComplete={handleComplete}
-              onDelete={handleDelete}
-              isCompleting={completingId === reminder._id}
-              isDeleting={false}
-            />
+            <ReminderCard key={reminder._id} reminder={reminder} />
           ))}
         </div>
       )}
@@ -641,12 +570,6 @@ export const RemindersPage = () => {
       <CreateReminderModal
         isOpen={createOpen}
         onClose={() => setCreateOpen(false)}
-      />
-      <DeleteConfirmModal
-        isOpen={deleteTarget !== null}
-        title={deleteTarget?.title ?? ""}
-        onConfirm={handleDeleteConfirm}
-        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );

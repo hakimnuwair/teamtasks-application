@@ -9,8 +9,6 @@
 import { useEffect, useCallback } from "react";
 import { useReminderStore } from "../store/reminderStore";
 import * as reminderService from "../services/reminder";
-import { parseApiError } from "../config/axios";
-import toast from "react-hot-toast";
 import type { CreateReminderPayload } from "../types/types";
 
 export const useReminders = () => {
@@ -87,22 +85,6 @@ export const useReminders = () => {
     // All subsequent fetches are triggered explicitly via setFilters or action callbacks.
   }, [fetchReminders]);
 
-  const complete = async (id: string) => {
-    try {
-      await reminderService.completeReminder(id);
-      toast.success("Marked complete!");
-      await fetchReminders();
-    } catch (err: unknown) {
-      toast.error(parseApiError(err, "Could not complete reminder"));
-    }
-  };
-
-  const remove = async (id: string) => {
-    await reminderService.deleteReminder(id);
-    toast.success("Reminder deleted");
-    await fetchReminders();
-  };
-
   const create = async (payload: CreateReminderPayload) => {
     const reminder = await reminderService.createReminder(payload);
     await fetchReminders();
@@ -117,8 +99,6 @@ export const useReminders = () => {
     error,
     setFilters, // now the wrapped version that fetches immediately
     fetchReminders,
-    complete,
-    remove,
     create,
   };
 };

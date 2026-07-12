@@ -22,6 +22,7 @@ import { RegisterPage } from "./pages/auth/Register";
 import { ForgotPasswordPage } from "./pages/auth/ForgotPassowrd";
 import { OAuthCallbackPage } from "./pages/auth/OAuthCallback";
 import { RemindersPage } from "./pages/reminders/Reminders";
+import { ReminderDetailPage } from "./pages/reminders/ReminderDetails";
 import { GroupsPage } from "./pages/groups/Groups";
 import { GroupDetailPage } from "./pages/groups/GroupDetails";
 import { NotificationsPage } from "./pages/notifications/Notification";
@@ -85,6 +86,7 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
             <Route path={ROUTES.REMINDERS} element={<RemindersPage />} />
+            <Route path="/reminders/:id" element={<ReminderDetailPage />} />
             <Route path={ROUTES.GROUPS} element={<GroupsPage />} />
             <Route path="/groups/:id" element={<GroupDetailPage />} />
             <Route

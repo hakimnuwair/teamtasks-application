@@ -37,7 +37,6 @@ export const useGroupDetail = (id: string | undefined) => {
   const [myInvitations, setMyInvitations] = useState<GroupInvitation[]>([]);
   const [sentInvites, setSentInvites] = useState<SentInvite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [completingId, setCompletingId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
@@ -99,24 +98,6 @@ export const useGroupDetail = (id: string | undefined) => {
       /* non-critical */
     }
   }, [id]);
-
-  const completeReminder = useCallback(
-    async (reminderId: string) => {
-      setCompletingId(reminderId);
-      try {
-        await reminderService.completeReminder(reminderId);
-        toast.success("Marked complete!");
-        await reloadReminders();
-      } catch (err: unknown) {
-        toast.error(
-          err instanceof Error ? err.message : "Could not complete reminder",
-        );
-      } finally {
-        setCompletingId(null);
-      }
-    },
-    [reloadReminders],
-  );
 
   const removeMember = useCallback(
     async (memberId: string) => {
@@ -182,7 +163,6 @@ export const useGroupDetail = (id: string | undefined) => {
     reminders,
     myInvitations,
     isLoading,
-    completingId,
     removingId,
     cancellingId,
     sentInvites,
@@ -191,7 +171,6 @@ export const useGroupDetail = (id: string | undefined) => {
     reloadReminders,
     reloadGroup,
     reloadSentInvites,
-    completeReminder,
     removeMember,
     respondToInvitation,
     cancelInvitation,

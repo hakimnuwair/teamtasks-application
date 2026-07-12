@@ -7,8 +7,10 @@
  * The page component never imports or calls any service directly.
  * All data operations flow through useGroupDetail hook.
  *
- * Reminder completion:
- *   - Interactive toggle per current user (circle → checkmark)
+ * Reminders:
+ *   - ReminderRow is a read-only overview item; clicking it navigates to
+ *     /reminders/:id (ReminderDetailPage), the single place to complete a
+ *     reminder, delete it, and manage its sub-reminders.
  *   - Per-member completion pills show who is done / pending
  *
  * Group pre-fill:
@@ -170,18 +172,17 @@ function InviteStatusBadge({ status }: { status: InvitationStatus }) {
 }
 
 // ─── Reminder row ─────────────────────────────────────────────────────────────
-// Clickable complete toggle for the current user.
+// Read-only overview item — clicking it navigates to /reminders/:id
+// (ReminderDetailPage), the single place to complete/delete a reminder and
+// manage its sub-reminders.
 // Completion pills below show every assigned user's status.
 
 function ReminderRow({
   reminder,
-  onComplete,
-  isCompleting,
 }: {
   reminder: Reminder;
-  onComplete: (id: string) => void;
-  isCompleting: boolean;
 }) {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const myId = user?.id ?? user?._id ?? "";
   const overdue = isOverdue(reminder.dueDateTime, reminder.status);
@@ -210,14 +211,11 @@ function ReminderRow({
     ),
   );
 
-  const isAssignedToMe =
-    reminder.assignedUsers.length === 0 ||
-    reminder.assignedUsers.some((u) => u._id === myId);
-
   return (
     <div
+      onClick={() => navigate(`/reminders/${reminder._id}`)}
       className={cn(
-        "rounded-xl border transition-all duration-[250ms]",
+        "rounded-xl border cursor-pointer transition-all duration-[250ms]",
         overdue
           ? "bg-[#FFF8F8] dark:bg-[rgba(244,63,94,0.05)] border-[#FECDD3] dark:border-[rgba(244,63,94,0.25)]"
           : "bg-white dark:bg-[#161B22] border-[#E2E6ED] dark:border-[#21262D]",
@@ -225,40 +223,26 @@ function ReminderRow({
     >
       {/* Main row */}
       <div className="flex items-start gap-3 p-4">
-        {/* Complete toggle */}
-        <button
-          onClick={() => isAssignedToMe && !iDone && onComplete(reminder._id)}
-          disabled={!isAssignedToMe || iDone || isCompleting}
-          title={
-            !isAssignedToMe
-              ? "Assigned to other members"
-              : iDone
-                ? "You completed this"
-                : "Mark as complete"
-          }
+        {/* Completion status — read-only, action moved to Reminder Details */}
+        <span
+          title={iDone ? "You completed this" : "Not completed yet"}
           className={cn(
-            "mt-0.5 shrink-0 transition-all duration-[250ms] disabled:opacity-40",
+            "mt-0.5 shrink-0",
             iDone
-              ? "text-emerald-500 cursor-default"
-              : !isAssignedToMe
-                ? "text-[#C8CDD8] dark:text-[#30363D] cursor-not-allowed"
-                : overdue
-                  ? "text-[#F43F5E] hover:text-[#E11D48] hover:scale-110"
-                  : "text-[#C8CDD8] dark:text-[#30363D] hover:text-indigo-600 dark:hover:text-indigo-400 hover:scale-110",
+              ? "text-emerald-500"
+              : overdue
+                ? "text-[#F43F5E]"
+                : "text-[#C8CDD8] dark:text-[#30363D]",
           )}
         >
-          {isCompleting ? (
-            <Spinner size="sm" />
-          ) : iDone ? (
+          {iDone ? (
             <CheckCircle2 className="w-4 h-4" />
-          ) : !isAssignedToMe ? (
-            <Circle className="w-4 h-4 opacity-30" />
           ) : overdue ? (
             <AlertTriangle className="w-4 h-4" />
           ) : (
             <Circle className="w-4 h-4" />
           )}
-        </button>
+        </span>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2 flex-wrap">
@@ -911,12 +895,10 @@ export const GroupDetailPage = () => {
     reminders,
     myInvitations,
     isLoading,
-    completingId,
     removingId,
     cancellingId,
     load,
     reloadReminders,
-    completeReminder,
     removeMember,
     respondToInvitation,
     cancelInvitation,
@@ -1211,12 +1193,7 @@ export const GroupDetailPage = () => {
           ) : (
             <div className="space-y-2.5">
               {reminders.map((r) => (
-                <ReminderRow
-                  key={r._id}
-                  reminder={r}
-                  onComplete={completeReminder}
-                  isCompleting={completingId === r._id}
-                />
+                <ReminderRow key={r._id} reminder={r} />
               ))}
             </div>
           )

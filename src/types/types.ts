@@ -114,6 +114,8 @@ export interface Reminder {
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  // Set when this Reminder is a sub-reminder of another Reminder; null/undefined for top-level reminders
+  parentId?: string | null;
 }
 
 export interface CreateReminderPayload {
@@ -123,6 +125,14 @@ export interface CreateReminderPayload {
   recurrence?: Recurrence;
   groupId?: string | null;
   assignedUsers?: string[]; // [] or omitted = all group members
+  priority?: Priority;
+}
+
+// Sub-reminders inherit groupId/assignedUsers from the parent and never recur
+export interface CreateSubReminderPayload {
+  title: string;
+  description?: string;
+  dueDateTime: string;
   priority?: Priority;
 }
 
