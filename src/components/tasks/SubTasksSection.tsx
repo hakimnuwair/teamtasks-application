@@ -75,9 +75,11 @@ export function SubTasksSection({ task }: Props) {
   // Sub-tasks are the task's execution plan — only the creator plans it
   // (creates/deletes items); assignees execute it (view + complete only).
   // Any other active group member gets read-only access (view only).
+  // Completion itself is assignee-only — the creator can plan (add/delete)
+  // without being an assignee, but that doesn't grant completion rights.
   const isCreator = task.createdBy._id === myId;
   const isAssignedToMe = task.assignedUsers.some((u) => u._id === myId);
-  const canComplete = isCreator || isAssignedToMe;
+  const canComplete = isAssignedToMe;
   const parentCompleted = task.status === "COMPLETED";
   const doneCount = subTasks.filter((s) => s.status === "COMPLETED").length;
 

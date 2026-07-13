@@ -179,8 +179,10 @@ function InviteStatusBadge({ status }: { status: InvitationStatus }) {
 
 function TaskRow({
   task,
+  from,
 }: {
   task: Task;
+  from: string;
 }) {
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -213,7 +215,7 @@ function TaskRow({
 
   return (
     <div
-      onClick={() => navigate(`/tasks/${task._id}`)}
+      onClick={() => navigate(`/tasks/${task._id}`, { state: { from } })}
       className={cn(
         "rounded-xl border cursor-pointer transition-all duration-[250ms]",
         overdue
@@ -888,6 +890,8 @@ function MembersTab({
 export const GroupDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const myId = user?.id ?? user?._id ?? "";
 
   // All data operations go through the hook — no service calls in this component
   const {
@@ -995,6 +999,11 @@ export const GroupDetailPage = () => {
   const membersBadge = myPendingCount + sentPendingCount;
 
   const existingEmails = group.members.map((m) => m.userId.email);
+  // Mirrors the backend's invite authorization (groupService/invitationService:
+  // only ADMIN members may invite) — this is a visibility-only check; the
+  // backend remains the source of truth for the actual authorization.
+  const isAdmin =
+    group.members.find((m) => m.userId._id === myId)?.role === "ADMIN";
 
   const TABS = [
     {
@@ -1040,14 +1049,16 @@ export const GroupDetailPage = () => {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button
-              variant="secondary"
-              size="sm"
-              leftIcon={<UserPlus className="w-3.5 h-3.5" />}
-              onClick={() => setInviteOpen(true)}
-            >
-              Invite
-            </Button>
+            {isAdmin && (
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<UserPlus className="w-3.5 h-3.5" />}
+                onClick={() => setInviteOpen(true)}
+              >
+                Invite
+              </Button>
+            )}
             <Button
               size="sm"
               leftIcon={<Plus className="w-3.5 h-3.5" />}
@@ -1193,7 +1204,7 @@ export const GroupDetailPage = () => {
           ) : (
             <div className="space-y-2.5">
               {tasks.map((r) => (
-                <TaskRow key={r._id} task={r} />
+                <TaskRow key={r._id} task={r} from={`/groups/${group._id}`} />
               ))}
             </div>
           )

@@ -8,7 +8,7 @@
  * GroupDetailPage's structure (header + stat/body cards), minus tabs.
  */
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -42,6 +42,10 @@ const PRIORITY_VARIANT: Record<Priority, "high" | "medium" | "low"> = {
 export const TaskDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Group Details passes { state: { from: "/groups/:id" } } so Back returns
+  // to the same group instead of always landing on the Tasks list.
+  const backTo = (location.state as { from?: string } | null)?.from || "/tasks";
   const { user } = useAuthStore();
   const myId = user?.id ?? user?._id ?? "";
 
@@ -124,7 +128,7 @@ export const TaskDetailPage = () => {
       {/* Header */}
       <div className="flex items-start gap-3">
         <button
-          onClick={() => navigate("/tasks")}
+          onClick={() => navigate(backTo)}
           className="mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F0F6FC] hover:bg-black/5 dark:hover:bg-white/5 transition-all duration-[250ms]"
         >
           <ArrowLeft className="w-4 h-4" />
