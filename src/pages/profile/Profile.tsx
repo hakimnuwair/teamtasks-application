@@ -3,7 +3,7 @@
  *
  * Sections:
  *   1. Profile hero — large avatar, name, email, joined date, role badge
- *   2. Account stats — groups joined, reminders created (from auth store data)
+ *   2. Account stats — groups joined, tasks created (from auth store data)
  *   3. Edit profile — update display name
  *   4. Change password — current + new + confirm
  *   5. Preferences — dark mode toggle, (extendable)
@@ -41,7 +41,7 @@ import { Button, Spinner } from "../../components/ui";
 import { useAuthStore } from "../../store/authStore";
 import { useUIStore } from "../../store/uiStore";
 import { useGroupStore } from "../../store/groupStore";
-import { useReminderStore } from "../../store/reminderStore";
+import { useTaskStore } from "../../store/taskStore";
 import * as userService from "../../services/user";
 import { ROUTES } from "../../config/routes";
 import toast from "react-hot-toast";
@@ -286,7 +286,7 @@ export const ProfilePage = () => {
   const { user, setUser, logout } = useAuthStore();
   const { isDarkMode, toggleDarkMode } = useUIStore();
   const groups = useGroupStore((s) => s.groups);
-  const reminders = useReminderStore((s) => s.reminders);
+  const tasks = useTaskStore((s) => s.tasks);
 
   // ── Edit profile ──────────────────────────────────────────────────────────
   const [editName, setEditName] = useState(user?.name ?? "");
@@ -398,10 +398,10 @@ export const ProfilePage = () => {
   };
 
   // ── Stats ─────────────────────────────────────────────────────────────────
-  const completedCount = reminders.filter(
+  const completedCount = tasks.filter(
     (r) => r.status === "COMPLETED",
   ).length;
-  const pendingCount = reminders.filter((r) => r.status === "PENDING").length;
+  const pendingCount = tasks.filter((r) => r.status === "PENDING").length;
 
   return (
     <div className="space-y-6">
@@ -685,8 +685,8 @@ export const ProfilePage = () => {
           {/* Quick nav to other sections */}
           {[
             {
-              label: "Manage reminders",
-              to: ROUTES.REMINDERS,
+              label: "Manage tasks",
+              to: ROUTES.TASKS,
               icon: CheckSquare,
             },
             { label: "View groups", to: ROUTES.GROUPS, icon: Users },

@@ -1,8 +1,8 @@
 import { create } from "zustand";
 
 type ModalType =
-  | "createReminder"
-  | "editReminder"
+  | "createTask"
+  | "editTask"
   | "createGroup"
   | "inviteMember"
   | null;
@@ -10,7 +10,7 @@ type ModalType =
 interface UIState {
   sidebarOpen: boolean;
   activeModal: ModalType;
-  modalData: unknown; // data passed to the open modal (e.g., reminder to edit)
+  modalData: unknown; // data passed to the open modal (e.g., task to edit)
   isDarkMode: boolean;
 
   toggleSidebar: () => void;

@@ -42,7 +42,7 @@ Built as a full MERN stack SPA, this repo is the React + TypeScript frontend —
 - **Activity Logs** — full audit trail of team actions
 - **Dark / Light Mode** — persisted theme preference
 - **Group Management** — create groups, invite members via invitation flow
-- **Reminders** — set and receive task reminders
+- **Tasks & Sub-Tasks** — set due dates, break work into sub-tasks, and get notified before deadlines
 - **Google OAuth** — sign in with Google alongside JWT auth
 
 ---
@@ -54,7 +54,7 @@ src/
 ├── components/
 │   ├── common/        # Shared UI components
 │   ├── modal/         # Modal components
-│   ├── reminders/     # Reminder-specific components
+│   ├── tasks/         # Task-specific components
 │   └── ui/            # Base UI primitives
 ├── hooks/             # Custom React hooks
 ├── layouts/           # Page layout wrappers
@@ -65,7 +65,7 @@ src/
 │   ├── groups/        # Group management
 │   ├── notifications/ # Notification centre
 │   ├── profile/       # User profile
-│   ├── reminders/     # Reminders view
+│   ├── tasks/         # Tasks view
 │   └── activity/      # Activity logs
 ├── services/          # API service functions
 ├── store/             # Zustand global state

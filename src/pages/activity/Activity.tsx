@@ -36,35 +36,47 @@ const ACTION_CFG: Record<
   ActivityAction | "DEFAULT",
   { icon: React.ElementType; color: string; bg: string; verb: string }
 > = {
-  REMINDER_CREATED: {
+  TASK_CREATED: {
     icon: Plus,
     color: "text-indigo-600 dark:text-indigo-400",
     bg: "bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.14)]",
-    verb: "created a reminder",
+    verb: "created a task",
   },
-  REMINDER_UPDATED: {
+  TASK_UPDATED: {
     icon: Edit3,
     color: "text-[#B45309] dark:text-[#FCD34D]",
     bg: "bg-[#FFFBEB] dark:bg-[rgba(245,158,11,0.12)]",
-    verb: "updated a reminder",
+    verb: "updated a task",
   },
-  REMINDER_COMPLETED: {
+  TASK_COMPLETED: {
     icon: CheckCircle2,
     color: "text-teal-600 dark:text-teal-400",
     bg: "bg-[#F0FDFA] dark:bg-[rgba(20,184,166,0.12)]",
-    verb: "completed a reminder",
+    verb: "completed a task",
   },
-  REMINDER_DELETED: {
+  TASK_DELETED: {
     icon: Trash2,
     color: "text-[#F43F5E] dark:text-[#FB7185]",
     bg: "bg-[#FFF1F2] dark:bg-[rgba(244,63,94,0.12)]",
-    verb: "deleted a reminder",
+    verb: "deleted a task",
   },
-  REMINDER_OVERDUE: {
+  TASK_OVERDUE: {
     icon: Bell,
     color: "text-[#F43F5E] dark:text-[#FB7185]",
     bg: "bg-[#FFF1F2] dark:bg-[rgba(244,63,94,0.12)]",
-    verb: "has an overdue reminder",
+    verb: "has an overdue task",
+  },
+  SUBTASK_CREATED: {
+    icon: Plus,
+    color: "text-indigo-600 dark:text-indigo-400",
+    bg: "bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.14)]",
+    verb: "created a sub-task",
+  },
+  SUBTASK_DELETED: {
+    icon: Trash2,
+    color: "text-[#F43F5E] dark:text-[#FB7185]",
+    bg: "bg-[#FFF1F2] dark:bg-[rgba(244,63,94,0.12)]",
+    verb: "deleted a sub-task",
   },
   GROUP_CREATED: {
     icon: Users,
@@ -181,12 +193,11 @@ function groupByDay(logs: ActivityLog[]) {
 }
 
 function extractSubject(log: ActivityLog): string | null {
-  if (log.reminderId?.title) return log.reminderId.title;
+  if (log.taskId?.title) return log.taskId.title;
   const m = log.metadata;
   if (typeof m?.title === "string" && m.title) return m.title;
   if (typeof m?.name === "string" && m.name) return m.name;
-  if (typeof m?.reminderTitle === "string" && m.reminderTitle)
-    return m.reminderTitle;
+  if (typeof m?.taskTitle === "string" && m.taskTitle) return m.taskTitle;
   return null;
 }
 

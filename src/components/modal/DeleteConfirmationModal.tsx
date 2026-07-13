@@ -112,7 +112,7 @@ export function DeleteConfirmModal({
 
           <div className="flex-1 min-w-0 pt-0.5">
             <h3 className="text-[15px] font-semibold text-[#0F172A] dark:text-[#F0F6FC] tracking-wide">
-              Delete reminder?
+              Delete task?
             </h3>
             <p className="text-sm text-[#475569] dark:text-[#8B949E] mt-1 leading-relaxed">
               {description ?? (

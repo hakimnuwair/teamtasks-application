@@ -7,11 +7,11 @@
  * ┌──────────────────────────────────────────────────────────────────────┐
  * │  EVENTS RECEIVED FROM BACKEND                                        │
  * ├──────────────────────────────┬───────────────────────────────────────┤
- * │  notificationTriggered       │ Reminder overdue / group invite / etc │
- * │  reminderCreated             │ Group member created a reminder        │
- * │  reminderUpdated             │ Reminder was edited                    │
- * │  reminderCompleted           │ A member completed a reminder          │
- * │  reminderOverdue             │ Scheduler marked reminder overdue      │
+ * │  notificationTriggered       │ Task overdue / group invite / etc     │
+ * │  taskCreated                 │ Group member created a task           │
+ * │  taskUpdated                 │ Task was edited                       │
+ * │  taskCompleted               │ A member completed a task             │
+ * │  taskOverdue                 │ Scheduler marked task overdue         │
  * │  groupMemberAdded            │ Current user was added to a group      │
  * └──────────────────────────────┴───────────────────────────────────────┘
  *
@@ -21,12 +21,12 @@ import { useEffect, useRef } from "react";
 import { getSocket } from "../config/socket";
 import { useAuthStore } from "../store/authStore";
 import { useNotificationStore } from "../store/notificationStore";
-import { useReminderStore } from "../store/reminderStore";
+import { useTaskStore } from "../store/taskStore";
 import { useGroupStore } from "../store/groupStore";
 import * as notificationService from "../services/notification";
 import * as groupService from "../services/group";
 import toast from "react-hot-toast";
-import type { Reminder, Notification } from "../types/types";
+import type { Task, Notification } from "../types/types";
 
 // ── Payload shapes ────────────────────────────────────────────────────────────
 
@@ -36,16 +36,16 @@ interface NotifPayload {
   title?: string;
   type?: string;
 }
-interface ReminderPayload {
-  reminder: Reminder;
+interface TaskPayload {
+  task: Task;
 }
-interface ReminderDonePayload {
-  reminderId: string;
-  reminder?: Reminder;
+interface TaskDonePayload {
+  taskId: string;
+  task?: Task;
 }
-interface ReminderOverduePayload {
-  reminderId: string;
-  reminder?: Reminder;
+interface TaskOverduePayload {
+  taskId: string;
+  task?: Task;
 }
 interface GroupAddedPayload {
   groupId: string;
@@ -55,9 +55,9 @@ interface GroupAddedPayload {
 
 function showNotifToast(n: Notification): void {
   const icons: Record<string, string> = {
-    REMINDER_DUE: "⏰",
+    TASK_DUE: "⏰",
     GROUP_INVITE: "👥",
-    REMINDER_ASSIGNED: "📋",
+    TASK_ASSIGNED: "📋",
     SYSTEM: "🔔",
   };
   const icon = icons[n.type] ?? "🔔";
@@ -108,52 +108,52 @@ export const useSocket = (): void => {
         });
     };
 
-    // ── reminderCreated ────────────────────────────────────────────────────
-    // Only add to local store if the reminder is assigned to me.
-    // This prevents group reminders for other members polluting my list.
-    const onReminderCreated = ({ reminder }: ReminderPayload): void => {
+    // ── taskCreated ────────────────────────────────────────────────────────
+    // Only add to local store if the task is assigned to me.
+    // This prevents group tasks for other members polluting my list.
+    const onTaskCreated = ({ task }: TaskPayload): void => {
       const me = userRef.current;
       if (!me) return;
       const myId = me.id ?? me._id ?? "";
-      const assigned = reminder.assignedUsers.some(
+      const assigned = task.assignedUsers.some(
         (u) => (typeof u === "string" ? u : u._id) === myId,
       );
       if (assigned) {
-        useReminderStore.getState().addReminder(reminder);
-        toast(`📋 New reminder: "${reminder.title}"`, { duration: 4000 });
+        useTaskStore.getState().addTask(task);
+        toast(`📋 New task: "${task.title}"`, { duration: 4000 });
       }
     };
 
-    // ── reminderUpdated ────────────────────────────────────────────────────
-    // Patch the reminder in-place. If it doesn't exist in the store yet,
-    // addReminder adds it so the view stays consistent.
-    const onReminderUpdated = ({ reminder }: ReminderPayload): void => {
-      const exists = useReminderStore
+    // ── taskUpdated ────────────────────────────────────────────────────────
+    // Patch the task in-place. If it doesn't exist in the store yet,
+    // addTask adds it so the view stays consistent.
+    const onTaskUpdated = ({ task }: TaskPayload): void => {
+      const exists = useTaskStore
         .getState()
-        .reminders.some((r) => r._id === reminder._id);
+        .tasks.some((t) => t._id === task._id);
       if (exists) {
-        useReminderStore.getState().updateReminder(reminder);
+        useTaskStore.getState().updateTask(task);
       } else {
-        useReminderStore.getState().addReminder(reminder);
+        useTaskStore.getState().addTask(task);
       }
     };
 
-    // ── reminderCompleted ──────────────────────────────────────────────────
-    // Backend sends the full reminder object OR just the ID.
+    // ── taskCompleted ──────────────────────────────────────────────────────
+    // Backend sends the full task object OR just the ID.
     // Optimistically patch status in the store without a network round-trip.
-    const onReminderCompleted = ({
-      reminderId,
-      reminder,
-    }: ReminderDonePayload): void => {
-      if (reminder) {
-        useReminderStore.getState().updateReminder(reminder);
+    const onTaskCompleted = ({
+      taskId,
+      task,
+    }: TaskDonePayload): void => {
+      if (task) {
+        useTaskStore.getState().updateTask(task);
         return;
       }
-      const existing = useReminderStore
+      const existing = useTaskStore
         .getState()
-        .reminders.find((r) => r._id === reminderId);
+        .tasks.find((t) => t._id === taskId);
       if (existing) {
-        useReminderStore.getState().updateReminder({
+        useTaskStore.getState().updateTask({
           ...existing,
           status: "COMPLETED",
           completedAt: new Date().toISOString(),
@@ -161,24 +161,24 @@ export const useSocket = (): void => {
       }
     };
 
-    // ── reminderOverdue ────────────────────────────────────────────────────
-    // Scheduler fires this when a reminder passes its due date.
+    // ── taskOverdue ────────────────────────────────────────────────────────
+    // Scheduler fires this when a task passes its due date.
     // Patch status to OVERDUE so the card immediately turns red.
-    const onReminderOverdue = ({
-      reminderId,
-      reminder,
-    }: ReminderOverduePayload): void => {
-      if (reminder) {
-        useReminderStore.getState().updateReminder(reminder);
+    const onTaskOverdue = ({
+      taskId,
+      task,
+    }: TaskOverduePayload): void => {
+      if (task) {
+        useTaskStore.getState().updateTask(task);
         return;
       }
-      const existing = useReminderStore
+      const existing = useTaskStore
         .getState()
-        .reminders.find((r) => r._id === reminderId);
+        .tasks.find((t) => t._id === taskId);
       if (existing) {
-        useReminderStore
+        useTaskStore
           .getState()
-          .updateReminder({ ...existing, status: "OVERDUE" });
+          .updateTask({ ...existing, status: "OVERDUE" });
       }
     };
 
@@ -197,19 +197,19 @@ export const useSocket = (): void => {
 
     // ── Register all listeners ─────────────────────────────────────────────
     socket.on("notificationTriggered", onNotification);
-    socket.on("reminderCreated", onReminderCreated);
-    socket.on("reminderUpdated", onReminderUpdated);
-    socket.on("reminderCompleted", onReminderCompleted);
-    socket.on("reminderOverdue", onReminderOverdue);
+    socket.on("taskCreated", onTaskCreated);
+    socket.on("taskUpdated", onTaskUpdated);
+    socket.on("taskCompleted", onTaskCompleted);
+    socket.on("taskOverdue", onTaskOverdue);
     socket.on("groupMemberAdded", onGroupMemberAdded);
 
     // ── Cleanup ────────────────────────────────────────────────────────────
     return () => {
       socket.off("notificationTriggered", onNotification);
-      socket.off("reminderCreated", onReminderCreated);
-      socket.off("reminderUpdated", onReminderUpdated);
-      socket.off("reminderCompleted", onReminderCompleted);
-      socket.off("reminderOverdue", onReminderOverdue);
+      socket.off("taskCreated", onTaskCreated);
+      socket.off("taskUpdated", onTaskUpdated);
+      socket.off("taskCompleted", onTaskCompleted);
+      socket.off("taskOverdue", onTaskOverdue);
       socket.off("groupMemberAdded", onGroupMemberAdded);
     };
   }, [user]); // re-register when user changes (login/logout)

@@ -1,5 +1,5 @@
 import { format, isToday, isTomorrow, isYesterday, isPast } from "date-fns";
-import type { ReminderStatus } from "../types/types";
+import type { TaskStatus } from "../types/types";
 
 /**
  * Formats due date nicely for UI display.
@@ -27,14 +27,14 @@ export const formatDueDate = (dateString: string): string => {
 };
 
 /**
- * Determines if reminder is overdue.
- * A reminder is overdue if:
+ * Determines if a task is overdue.
+ * A task is overdue if:
  *  - status is not COMPLETED
  *  - due date is in the past
  */
 export const isOverdue = (
   dateString: string,
-  status: ReminderStatus,
+  status: TaskStatus,
 ): boolean => {
   if (status === "COMPLETED") return false;
 

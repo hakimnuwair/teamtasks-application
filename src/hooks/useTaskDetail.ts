@@ -1,18 +1,18 @@
 /**
- * hooks/useReminderDetail.ts
+ * hooks/useTaskDetail.ts
  *
- * Single-reminder fetch-by-id hook backing the Reminder Details page.
+ * Single-task fetch-by-id hook backing the Task Details page.
  * Modeled on useGroupDetail.tsx but for one entity, not a list.
  */
 import { useState, useCallback } from "react";
-import * as reminderService from "../services/reminder";
-import { SUB_REMINDER_BLOCK_MESSAGE } from "../services/subReminder";
+import * as taskService from "../services/task";
+import { SUB_TASK_BLOCK_MESSAGE } from "../services/subTask";
 import { parseApiError } from "../config/axios";
 import toast from "react-hot-toast";
-import type { Reminder } from "../types/types";
+import type { Task } from "../types/types";
 
-export const useReminderDetail = (id: string | undefined) => {
-  const [reminder, setReminder] = useState<Reminder | null>(null);
+export const useTaskDetail = (id: string | undefined) => {
+  const [task, setTask] = useState<Task | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -23,10 +23,10 @@ export const useReminderDetail = (id: string | undefined) => {
     setIsLoading(true);
     setError(null);
     try {
-      const r = await reminderService.getReminderById(id);
-      setReminder(r);
+      const t = await taskService.getTaskById(id);
+      setTask(t);
     } catch (err: unknown) {
-      setError(parseApiError(err, "Reminder not found"));
+      setError(parseApiError(err, "Task not found"));
     } finally {
       setIsLoading(false);
     }
@@ -36,14 +36,14 @@ export const useReminderDetail = (id: string | undefined) => {
     if (!id) return;
     setIsCompleting(true);
     try {
-      const updated = await reminderService.completeReminder(id);
-      setReminder(updated);
+      const updated = await taskService.completeTask(id);
+      setTask(updated);
       toast.success("Marked complete!");
     } catch (err: unknown) {
-      const msg = parseApiError(err, "Could not complete reminder");
+      const msg = parseApiError(err, "Could not complete task");
       toast.error(
         msg,
-        msg === SUB_REMINDER_BLOCK_MESSAGE ? { duration: 6000 } : undefined,
+        msg === SUB_TASK_BLOCK_MESSAGE ? { duration: 6000 } : undefined,
       );
     } finally {
       setIsCompleting(false);
@@ -54,12 +54,12 @@ export const useReminderDetail = (id: string | undefined) => {
     if (!id) return;
     setIsDeleting(true);
     try {
-      await reminderService.deleteReminder(id);
-      toast.success("Reminder deleted");
+      await taskService.deleteTask(id);
+      toast.success("Task deleted");
     } finally {
       setIsDeleting(false);
     }
   }, [id]);
 
-  return { reminder, isLoading, error, isCompleting, isDeleting, load, complete, remove };
+  return { task, isLoading, error, isCompleting, isDeleting, load, complete, remove };
 };

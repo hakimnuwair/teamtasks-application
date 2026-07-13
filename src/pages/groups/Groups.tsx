@@ -3,13 +3,13 @@
  *
  * Architecture: GroupsPage → useGroups (hook) → groupStore → groupService
  *
- * Progress/Tasks: The Group type doesn't include reminder counts from the backend
+ * Progress/Tasks: The Group type doesn't include task counts from the backend
  * list endpoint. Instead of showing hardcoded 0%, we show meaningful stats:
  *   - Member count (always accurate)
  *   - Pending invitation count (from sentInvites — local, not tracked here)
  *   - "N members" with avatar stack
  * The progress bar is removed from group cards — it was always 0% and misleading.
- * Real progress is shown in GroupDetail where we have actual reminder data.
+ * Real progress is shown in GroupDetail where we have actual task data.
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -217,7 +217,7 @@ export const GroupsPage = () => {
               Groups
             </h2>
             <p className="text-sm text-[#94A3B8] mt-0.5">
-              Collaborate with your team on shared reminders
+              Collaborate with your team on shared tasks
             </p>
           </div>
           <Button

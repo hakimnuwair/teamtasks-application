@@ -1,52 +1,52 @@
 /**
- * hooks/useReminders.ts
+ * hooks/useTasks.ts
  *
- * Fix: fetchReminders reads filters via getState() instead of closing over
+ * Fix: fetchTasks reads filters via getState() instead of closing over
  * the memoized `filters` value — this eliminates the stale-closure race where
  * setFilters updates Zustand but the in-flight useCallback still holds the
  * previous filters snapshot.
  */
 import { useEffect, useCallback } from "react";
-import { useReminderStore } from "../store/reminderStore";
-import * as reminderService from "../services/reminder";
-import type { CreateReminderPayload } from "../types/types";
+import { useTaskStore } from "../store/taskStore";
+import * as taskService from "../services/task";
+import type { CreateTaskPayload } from "../types/types";
 
-export const useReminders = () => {
+export const useTasks = () => {
   const {
-    reminders,
+    tasks,
     filters,
     pagination,
     isLoading,
     error,
     setFilters: storeSetFilters,
-    setReminders,
+    setTasks,
     setLoading,
     setError,
-  } = useReminderStore();
+  } = useTaskStore();
 
   // ✅ No dependency on `filters` — always reads the latest value via getState()
-  const fetchReminders = useCallback(async () => {
+  const fetchTasks = useCallback(async () => {
     // Read the current filters snapshot at call-time, not at memo-creation-time
-    const currentFilters = useReminderStore.getState().filters;
+    const currentFilters = useTaskStore.getState().filters;
 
     setLoading(true);
     setError(null);
     try {
       const result = currentFilters.groupId
-        ? await reminderService.getGroupReminders(currentFilters.groupId, {
+        ? await taskService.getGroupTasks(currentFilters.groupId, {
             status: currentFilters.status,
             priority: currentFilters.priority,
             page: currentFilters.page,
             limit: currentFilters.limit,
           })
-        : await reminderService.getReminders(currentFilters);
-      setReminders(result.reminders, result.pagination);
+        : await taskService.getTasks(currentFilters);
+      setTasks(result.tasks, result.pagination);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load reminders");
+      setError(err instanceof Error ? err.message : "Failed to load tasks");
     } finally {
       setLoading(false);
     }
-  }, [setReminders, setLoading, setError]); // ✅ stable deps only — never re-created on filter change
+  }, [setTasks, setLoading, setError]); // ✅ stable deps only — never re-created on filter change
 
   // ✅ setFilters now updates the store AND immediately triggers a fresh fetch
   // with the merged filters in one atomic step, eliminating the timing gap.
@@ -55,50 +55,48 @@ export const useReminders = () => {
       storeSetFilters(partial);
       // Merge manually so we can pass the complete new filters to the fetch
       // instead of waiting for Zustand's async re-render to propagate.
-      const merged = { ...useReminderStore.getState().filters, ...partial };
+      const merged = { ...useTaskStore.getState().filters, ...partial };
       setLoading(true);
       setError(null);
       try {
         const result = merged.groupId
-          ? await reminderService.getGroupReminders(merged.groupId, {
+          ? await taskService.getGroupTasks(merged.groupId, {
               status: merged.status,
               priority: merged.priority,
               page: merged.page,
               limit: merged.limit,
             })
-          : await reminderService.getReminders(merged);
-        setReminders(result.reminders, result.pagination);
+          : await taskService.getTasks(merged);
+        setTasks(result.tasks, result.pagination);
       } catch (err: unknown) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load reminders",
-        );
+        setError(err instanceof Error ? err.message : "Failed to load tasks");
       } finally {
         setLoading(false);
       }
     },
-    [storeSetFilters, setReminders, setLoading, setError],
+    [storeSetFilters, setTasks, setLoading, setError],
   );
 
   useEffect(() => {
-    fetchReminders();
-    // fetchReminders is stable (no filter deps), so this only runs on mount.
+    fetchTasks();
+    // fetchTasks is stable (no filter deps), so this only runs on mount.
     // All subsequent fetches are triggered explicitly via setFilters or action callbacks.
-  }, [fetchReminders]);
+  }, [fetchTasks]);
 
-  const create = async (payload: CreateReminderPayload) => {
-    const reminder = await reminderService.createReminder(payload);
-    await fetchReminders();
-    return reminder;
+  const create = async (payload: CreateTaskPayload) => {
+    const task = await taskService.createTask(payload);
+    await fetchTasks();
+    return task;
   };
 
   return {
-    reminders,
+    tasks,
     filters,
     pagination,
     isLoading,
     error,
     setFilters, // now the wrapped version that fetches immediately
-    fetchReminders,
+    fetchTasks,
     create,
   };
 };

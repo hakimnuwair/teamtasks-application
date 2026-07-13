@@ -39,7 +39,7 @@ const TYPE_CFG: Record<
   NotificationType,
   { icon: React.ElementType; color: string; bg: string }
 > = {
-  REMINDER_DUE: {
+  TASK_DUE: {
     icon: Clock,
     color: "text-[#B45309] dark:text-[#FCD34D]",
     bg: "bg-[#FFFBEB] dark:bg-[rgba(245,158,11,0.14)]",
@@ -49,7 +49,7 @@ const TYPE_CFG: Record<
     color: "text-indigo-600 dark:text-indigo-400",
     bg: "bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.14)]",
   },
-  REMINDER_ASSIGNED: {
+  TASK_ASSIGNED: {
     icon: CheckSquare,
     color: "text-indigo-600 dark:text-indigo-400",
     bg: "bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.14)]",
@@ -300,11 +300,11 @@ function NotificationRow({
         >
           {n.message}
         </p>
-        {(n.reminderId || n.groupId) && (
+        {(n.taskId || n.groupId) && (
           <p className="text-xs text-[#94A3B8]">
-            {n.reminderId && (
+            {n.taskId && (
               <span className="text-indigo-500 dark:text-indigo-400">
-                "{n.reminderId.title}"
+                "{n.taskId.title}"
               </span>
             )}
             {n.groupId && (

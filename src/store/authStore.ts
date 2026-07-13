@@ -6,7 +6,7 @@
  * normalizeUser: ensures user.id and user._id are always plain strings.
  * login/initialize fetch user, store token, connect socket.
  * logout: clears token, disconnects socket, and resets all dependent stores
- *   (notificationStore, groupStore, reminderStore, activityStore) so stale
+ *   (notificationStore, groupStore, taskStore, activityStore) so stale
  *   data from the previous session is never shown to the next user on the
  *   same device.
  */
@@ -32,9 +32,9 @@ const resetDependentStores = () => {
   import("./groupStore").then((m) => {
     m.useGroupStore.setState({ groups: [], isLoading: false, error: null });
   });
-  import("./reminderStore").then((m) => {
-    m.useReminderStore.setState({
-      reminders: [],
+  import("./taskStore").then((m) => {
+    m.useTaskStore.setState({
+      tasks: [],
       pagination: null,
       filters: { page: 1, limit: 20 },
     });

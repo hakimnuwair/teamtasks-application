@@ -1,18 +1,18 @@
 /**
- * hooks/useAiSubtaskDraft.ts
+ * hooks/useAiSubTaskDraft.ts
  *
- * Ephemeral, client-only draft list for the "Generate Subtasks with AI"
- * review flow. Deliberately separate from useSubReminders (which is scoped
+ * Ephemeral, client-only draft list for the "Generate Sub-tasks with AI"
+ * review flow. Deliberately separate from useSubTasks (which is scoped
  * to the *persisted* list and always reconciles against the server) — items
- * here are not real sub-reminders until confirm() succeeds, and nothing is
+ * here are not real sub-tasks until confirm() succeeds, and nothing is
  * written to the database before that.
  */
 import { useState } from "react";
-import * as subReminderService from "../services/subReminder";
-import { parseForm, createSubReminderSchema } from "../lib/validations";
+import * as subTaskService from "../services/subTask";
+import { parseForm, createSubTaskSchema } from "../lib/validations";
 import { parseApiError } from "../config/axios";
 import toast from "react-hot-toast";
-import type { DraftSubtask, Reminder } from "../types/types";
+import type { DraftSubTask, Task } from "../types/types";
 
 // datetime-local inputs need "YYYY-MM-DDTHH:mm" in local time, not a raw ISO string
 const toDatetimeLocal = (iso: string): string => {
@@ -24,15 +24,15 @@ const toDatetimeLocal = (iso: string): string => {
 const makeTempId = () =>
   `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-const BLANK_DRAFT: Omit<DraftSubtask, "tempId"> = {
+const BLANK_DRAFT: Omit<DraftSubTask, "tempId"> = {
   title: "",
   description: "",
   dueDateTime: "",
   priority: "MEDIUM",
 };
 
-export const useAiSubtaskDraft = (parentId: string | undefined) => {
-  const [suggestions, setSuggestions] = useState<DraftSubtask[]>([]);
+export const useAiSubTaskDraft = (parentId: string | undefined) => {
+  const [suggestions, setSuggestions] = useState<DraftSubTask[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +42,7 @@ export const useAiSubtaskDraft = (parentId: string | undefined) => {
     setIsGenerating(true);
     setError(null);
     try {
-      const result = await subReminderService.generateSubtasks(parentId);
+      const result = await subTaskService.generateSubTasks(parentId);
       setSuggestions(
         result.map((s) => ({
           ...s,
@@ -51,7 +51,7 @@ export const useAiSubtaskDraft = (parentId: string | undefined) => {
         })),
       );
     } catch (err: unknown) {
-      const msg = parseApiError(err, "Could not generate subtasks");
+      const msg = parseApiError(err, "Could not generate sub-tasks");
       setError(msg);
       toast.error(msg);
     } finally {
@@ -61,7 +61,7 @@ export const useAiSubtaskDraft = (parentId: string | undefined) => {
 
   const updateSuggestion = (
     tempId: string,
-    patch: Partial<Omit<DraftSubtask, "tempId">>,
+    patch: Partial<Omit<DraftSubTask, "tempId">>,
   ) => {
     setSuggestions((prev) =>
       prev.map((s) => (s.tempId === tempId ? { ...s, ...patch } : s)),
@@ -84,23 +84,21 @@ export const useAiSubtaskDraft = (parentId: string | undefined) => {
     setError(null);
   };
 
-  const confirm = async (): Promise<Reminder[] | null> => {
+  const confirm = async (): Promise<Task[] | null> => {
     if (!parentId || suggestions.length === 0) return null;
 
     // Validate every row with the exact same schema the manual add form
     // already uses — no new validation logic, just reused per-item.
     const items = [];
     for (const s of suggestions) {
-      const { data, errors } = parseForm(createSubReminderSchema, {
+      const { data, errors } = parseForm(createSubTaskSchema, {
         title: s.title,
         description: s.description || undefined,
         dueDateTime: s.dueDateTime,
         priority: s.priority,
       });
       if (errors) {
-        toast.error(
-          `"${s.title || "Untitled"}": ${Object.values(errors)[0]}`,
-        );
+        toast.error(`"${s.title || "Untitled"}": ${Object.values(errors)[0]}`);
         return null;
       }
       items.push(data);
@@ -108,17 +106,17 @@ export const useAiSubtaskDraft = (parentId: string | undefined) => {
 
     setIsConfirming(true);
     try {
-      const created = await subReminderService.createSubRemindersBatch(
+      const created = await subTaskService.createSubTasksBatch(
         parentId,
         items,
       );
       toast.success(
-        `${created.length} sub-reminder${created.length !== 1 ? "s" : ""} added`,
+        `${created.length} sub-task${created.length !== 1 ? "s" : ""} added`,
       );
       setSuggestions([]);
       return created;
     } catch (err: unknown) {
-      toast.error(parseApiError(err, "Could not save sub-reminders"));
+      toast.error(parseApiError(err, "Could not save sub-tasks"));
       return null;
     } finally {
       setIsConfirming(false);

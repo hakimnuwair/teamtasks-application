@@ -3,7 +3,7 @@
  *
  * Zod schemas for all user-facing forms.
  * Each schema is co-located with its inferred TypeScript type.
- * Used in: CreateReminderModal, CreateGroupModal, InviteMember, Login, Register.
+ * Used in: CreateTaskModal, CreateGroupModal, InviteMember, Login, Register.
  */
 
 import { z } from "zod";
@@ -32,9 +32,9 @@ export function parseForm<T>(
   return { data: null, errors };
 }
 
-// ─── REMINDER ─────────────────────────────────────────────────────────────────
+// ─── TASK ─────────────────────────────────────────────────────────────────────
 
-export const createReminderSchema = z.object({
+export const createTaskSchema = z.object({
   title: z
     .string()
     .min(1, "Title is required")
@@ -67,12 +67,12 @@ export const createReminderSchema = z.object({
     .transform((v) => v || null),
 });
 
-export type CreateReminderFormData = z.infer<typeof createReminderSchema>;
+export type CreateTaskFormData = z.infer<typeof createTaskSchema>;
 
-// ─── SUB-REMINDER ─────────────────────────────────────────────────────────────
-// No recurrence/groupId — sub-reminders don't recur and inherit groupId from the parent.
+// ─── SUB-TASK ─────────────────────────────────────────────────────────────────
+// No recurrence/groupId — sub-tasks don't recur and inherit groupId from the parent.
 
-export const createSubReminderSchema = z.object({
+export const createSubTaskSchema = z.object({
   title: z
     .string()
     .min(1, "Title is required")
@@ -97,9 +97,7 @@ export const createSubReminderSchema = z.object({
   priority: z.enum(["LOW", "MEDIUM", "HIGH"]).default("MEDIUM"),
 });
 
-export type CreateSubReminderFormData = z.infer<
-  typeof createSubReminderSchema
->;
+export type CreateSubTaskFormData = z.infer<typeof createSubTaskSchema>;
 
 // ─── GROUP ────────────────────────────────────────────────────────────────────
 
@@ -170,12 +168,12 @@ export const registerSchema = z
 
 export type RegisterFormData = z.infer<typeof registerSchema>;
 
-// ─── REMINDER (with assignedUsers) ───────────────────────────────────────────
+// ─── TASK (with assignedUsers) ────────────────────────────────────────────────
 
-export const createReminderWithAssignmentSchema = createReminderSchema.extend({
+export const createTaskWithAssignmentSchema = createTaskSchema.extend({
   assignedUsers: z.array(z.string()).optional(),
 });
 
-export type CreateReminderWithAssignmentData = z.infer<
-  typeof createReminderWithAssignmentSchema
+export type CreateTaskWithAssignmentData = z.infer<
+  typeof createTaskWithAssignmentSchema
 >;

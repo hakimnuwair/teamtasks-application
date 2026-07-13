@@ -1,11 +1,11 @@
 /**
- * pages/reminders/Reminders.tsx
+ * pages/tasks/Tasks.tsx
  *
- * Architecture: RemindersPage → useReminders + useGroups (hooks) → stores → services
+ * Architecture: TasksPage → useTasks + useGroups (hooks) → stores → services
  *
- * ReminderCard is a read-only overview item — clicking it navigates to
- * /reminders/:id (ReminderDetailPage), which is the single place to
- * complete/delete a reminder and manage its sub-reminders.
+ * TaskCard is a read-only overview item — clicking it navigates to
+ * /tasks/:id (TaskDetailPage), which is the single place to
+ * complete/delete a task and manage its sub-tasks.
  *
  * Group filter: ALL | personal | specific group
  * Clear filters: single button resets all filters to defaults.
@@ -25,7 +25,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useReminders } from "../../hooks/useReminders";
+import { useTasks } from "../../hooks/useTasks";
 import { useGroups } from "../../hooks/useGroups";
 import { useAuthStore } from "../../store/authStore";
 import {
@@ -36,16 +36,16 @@ import {
   Card,
   FAB,
 } from "../../components/ui";
-import { CreateReminderModal } from "../../components/modal/CreateReminderModal";
+import { CreateTaskModal } from "../../components/modal/CreateTaskModal";
 import { cn } from "../../utils/cn";
 import { formatDueDate, isOverdue } from "../../utils/formatDate";
-import type { Reminder, ReminderStatus, Priority } from "../../types/types";
+import type { Task, TaskStatus, Priority } from "../../types/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STATUS_TABS: { label: string; value: ReminderStatus | "ALL" }[] = [
+const STATUS_TABS: { label: string; value: TaskStatus | "ALL" }[] = [
   { label: "All", value: "ALL" },
   { label: "Pending", value: "PENDING" },
   { label: "Completed", value: "COMPLETED" },
@@ -60,28 +60,28 @@ const PRIORITY_OPTIONS: { label: string; value: Priority | "ALL" }[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// REMINDER CARD
+// TASK CARD
 // Per-user completion logic:
-//   iDone     = current user already completed this reminder
+//   iDone     = current user already completed this task
 //   globalDone = top-level status is COMPLETED (ALL members done)
-//   isGroup   = reminder belongs to a group (has userCompletions)
+//   isGroup   = task belongs to a group (has userCompletions)
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface ReminderCardProps {
-  reminder: Reminder;
+interface TaskCardProps {
+  task: Task;
 }
 
-function ReminderCard({ reminder }: ReminderCardProps) {
+function TaskCard({ task }: TaskCardProps) {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const myId = user?.id ?? user?._id ?? "";
-  const overdue = isOverdue(reminder.dueDateTime, reminder.status);
-  const globalDone = reminder.status === "COMPLETED";
-  const isGroup = !!reminder.groupId;
+  const overdue = isOverdue(task.dueDateTime, task.status);
+  const globalDone = task.status === "COMPLETED";
+  const isGroup = !!task.groupId;
 
-  // Per-user completion — only meaningful for group reminders
+  // Per-user completion — only meaningful for group tasks
   const iDone = isGroup
-    ? (reminder.userCompletions ?? []).some((uc) => {
+    ? (task.userCompletions ?? []).some((uc) => {
         const uid =
           typeof uc.userId === "string"
             ? uc.userId
@@ -91,7 +91,7 @@ function ReminderCard({ reminder }: ReminderCardProps) {
     : globalDone;
 
   const completedIds = new Set(
-    (reminder.userCompletions ?? []).map((uc) =>
+    (task.userCompletions ?? []).map((uc) =>
       typeof uc.userId === "string"
         ? uc.userId
         : (uc.userId as { _id: string })._id,
@@ -99,7 +99,7 @@ function ReminderCard({ reminder }: ReminderCardProps) {
   );
 
   const statusVariant: Record<
-    ReminderStatus,
+    TaskStatus,
     "pending" | "completed" | "overdue"
   > = {
     PENDING: "pending",
@@ -114,7 +114,7 @@ function ReminderCard({ reminder }: ReminderCardProps) {
 
   return (
     <article
-      onClick={() => navigate(`/reminders/${reminder._id}`)}
+      onClick={() => navigate(`/tasks/${task._id}`)}
       className={cn(
         "group relative flex flex-col gap-0 rounded-xl border cursor-pointer transition-all duration-[250ms] ease-in-out overflow-hidden",
         !overdue &&
@@ -132,7 +132,7 @@ function ReminderCard({ reminder }: ReminderCardProps) {
     >
       {/* Main row */}
       <div className="flex items-start gap-4 p-5">
-        {/* Completion status — read-only, action moved to Reminder Details */}
+        {/* Completion status — read-only, action moved to Task Details */}
         <span
           title={
             globalDone
@@ -171,25 +171,25 @@ function ReminderCard({ reminder }: ReminderCardProps) {
                     : "text-[#0F172A] dark:text-[#F0F6FC]",
               )}
             >
-              {reminder.title}
+              {task.title}
             </h3>
             <div className="flex items-center gap-1.5 flex-wrap">
-              {/* "You done" badge — only shown for group reminders where I'm done but not all */}
+              {/* "You done" badge — only shown for group tasks where I'm done but not all */}
               {isGroup && iDone && !globalDone && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#F0FDF4] dark:bg-[rgba(34,197,94,0.12)] text-[#16A34A] dark:text-[#86EFAC]">
                   <CheckCircle2 className="w-2.5 h-2.5" /> You done
                 </span>
               )}
-              <Badge variant={statusVariant[reminder.status]}>
-                {reminder.status.charAt(0) +
-                  reminder.status.slice(1).toLowerCase()}
+              <Badge variant={statusVariant[task.status]}>
+                {task.status.charAt(0) +
+                  task.status.slice(1).toLowerCase()}
               </Badge>
             </div>
           </div>
 
-          {reminder.description && (
+          {task.description && (
             <p className="mt-1.5 text-xs text-[#475569] dark:text-[#8B949E] leading-relaxed line-clamp-2">
-              {reminder.description}
+              {task.description}
             </p>
           )}
 
@@ -208,30 +208,30 @@ function ReminderCard({ reminder }: ReminderCardProps) {
               ) : (
                 <Clock className="w-3 h-3" />
               )}
-              {formatDueDate(reminder.dueDateTime)}
+              {formatDueDate(task.dueDateTime)}
             </span>
-            <Badge variant={priorityVariant[reminder.priority]} dot={false}>
-              {reminder.priority}
+            <Badge variant={priorityVariant[task.priority]} dot={false}>
+              {task.priority}
             </Badge>
-            {reminder.groupId && (
+            {task.groupId && (
               <span className="inline-flex items-center gap-1 text-[11px] font-medium uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.14)] px-2 py-0.5 rounded-full">
                 <Tag className="w-2.5 h-2.5" />
-                {reminder.groupId.name}
+                {task.groupId.name}
               </span>
             )}
-            {reminder.assignedUsers.length > 0 && (
+            {task.assignedUsers.length > 0 && (
               <div className="ml-auto">
-                <AvatarStack users={reminder.assignedUsers} max={3} size="xs" />
+                <AvatarStack users={task.assignedUsers} max={3} size="xs" />
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Per-member completion strip — only for group reminders with assigned users */}
-      {isGroup && reminder.assignedUsers.length > 0 && (
+      {/* Per-member completion strip — only for group tasks with assigned users */}
+      {isGroup && task.assignedUsers.length > 0 && (
         <div className="px-5 pb-3 flex flex-wrap gap-1.5 border-t border-[#F1F5F9] dark:border-[#21262D] pt-2.5">
-          {reminder.assignedUsers.map((u) => {
+          {task.assignedUsers.map((u) => {
             const done = completedIds.has(u._id);
             const isMe = u._id === myId;
             return (
@@ -266,7 +266,7 @@ function ReminderCard({ reminder }: ReminderCardProps) {
 // SKELETON
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ReminderSkeleton() {
+function TaskSkeleton() {
   return (
     <div className="flex items-start gap-4 p-5 rounded-xl border bg-white dark:bg-[#161B22] border-[#E2E6ED] dark:border-[#21262D]">
       <div className="w-5 h-5 rounded-full mt-0.5 shrink-0 animate-pulse bg-[#EEF0F4] dark:bg-[#21262D]" />
@@ -286,22 +286,22 @@ function ReminderSkeleton() {
 // PAGE
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const RemindersPage = () => {
-  const [activeStatus, setActiveStatus] = useState<ReminderStatus | "ALL">(
+export const TasksPage = () => {
+  const [activeStatus, setActiveStatus] = useState<TaskStatus | "ALL">(
     "ALL",
   );
   const [activePriority, setActivePriority] = useState<Priority | "ALL">("ALL");
   const [activeGroup, setActiveGroup] = useState<string>("ALL");
   const [createOpen, setCreateOpen] = useState(false);
 
-  const { reminders, pagination, isLoading, error, setFilters } = useReminders();
+  const { tasks, pagination, isLoading, error, setFilters } = useTasks();
   const { groups } = useGroups();
 
   // Check if any filter is active
   const hasActiveFilters =
     activeStatus !== "ALL" || activePriority !== "ALL" || activeGroup !== "ALL";
 
-  const handleStatusChange = (status: ReminderStatus | "ALL") => {
+  const handleStatusChange = (status: TaskStatus | "ALL") => {
     setActiveStatus(status);
     setFilters({ status: status === "ALL" ? undefined : status, page: 1 });
   };
@@ -338,10 +338,10 @@ export const RemindersPage = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const displayedReminders =
+  const displayedTasks =
     activeGroup === "personal"
-      ? reminders.filter((r) => !r.groupId)
-      : reminders;
+      ? tasks.filter((t) => !t.groupId)
+      : tasks;
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -351,11 +351,11 @@ export const RemindersPage = () => {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-[22px] md:text-[28px] font-semibold tracking-wide leading-snug text-[#0F172A] dark:text-[#F0F6FC]">
-            My Reminders
+            My Tasks
           </h2>
           <p className="text-sm text-[#94A3B8] mt-0.5">
             {pagination
-              ? `${pagination.total} reminder${pagination.total !== 1 ? "s" : ""} total`
+              ? `${pagination.total} task${pagination.total !== 1 ? "s" : ""} total`
               : "Manage your tasks and deadlines"}
           </p>
         </div>
@@ -364,7 +364,7 @@ export const RemindersPage = () => {
           size="md"
           onClick={() => setCreateOpen(true)}
         >
-          New Reminder
+          New Task
         </Button>
       </div>
 
@@ -464,9 +464,9 @@ export const RemindersPage = () => {
         )}
 
         {/* Count pill */}
-        {!isLoading && displayedReminders.length > 0 && (
+        {!isLoading && displayedTasks.length > 0 && (
           <span className="ml-auto text-[11px] font-medium uppercase tracking-widest text-[#94A3B8] bg-[#EEF0F4] dark:bg-[#21262D] px-2.5 py-1 rounded-full">
-            {displayedReminders.length} shown
+            {displayedTasks.length} shown
           </span>
         )}
       </div>
@@ -483,18 +483,18 @@ export const RemindersPage = () => {
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
-            <ReminderSkeleton key={i} />
+            <TaskSkeleton key={i} />
           ))}
         </div>
-      ) : displayedReminders.length === 0 ? (
+      ) : displayedTasks.length === 0 ? (
         <Card>
           <EmptyState
             icon={<CheckCircle2 className="w-8 h-8" />}
-            title="No reminders found"
+            title="No tasks found"
             description={
               hasActiveFilters
-                ? "Try clearing some filters to see more reminders."
-                : "You're all caught up! Create your first reminder to get started."
+                ? "Try clearing some filters to see more tasks."
+                : "You're all caught up! Create your first task to get started."
             }
             action={
               hasActiveFilters ? (
@@ -512,7 +512,7 @@ export const RemindersPage = () => {
                   size="sm"
                   onClick={() => setCreateOpen(true)}
                 >
-                  Create Reminder
+                  Create Task
                 </Button>
               )
             }
@@ -520,8 +520,8 @@ export const RemindersPage = () => {
         </Card>
       ) : (
         <div className="space-y-3">
-          {displayedReminders.map((reminder) => (
-            <ReminderCard key={reminder._id} reminder={reminder} />
+          {displayedTasks.map((task) => (
+            <TaskCard key={task._id} task={task} />
           ))}
         </div>
       )}
@@ -565,9 +565,9 @@ export const RemindersPage = () => {
       <FAB
         onClick={() => setCreateOpen(true)}
         icon={<Plus className="w-6 h-6" />}
-        label="New Reminder"
+        label="New Task"
       />
-      <CreateReminderModal
+      <CreateTaskModal
         isOpen={createOpen}
         onClose={() => setCreateOpen(false)}
       />

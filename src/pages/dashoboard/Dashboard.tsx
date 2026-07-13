@@ -2,7 +2,7 @@
  * pages/dashboard/Dashboard.tsx
  *
  * Stats fetched from existing endpoints — no dedicated /dashboard endpoint:
- *   GET /reminders?limit=200   → pending / completed / overdue counts, upcoming
+ *   GET /tasks?limit=200       → pending / completed / overdue counts, upcoming
  *   GET /groups                → group count, group filter options
  *   GET /activity?limit=10     → recent activity feed
  *   GET /notifications         → unreadCount badge
@@ -35,9 +35,9 @@ import {
 } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { Button, Spinner, EmptyState, Card } from "../../components/ui";
-import { CreateReminderModal } from "../../components/modal/CreateReminderModal";
+import { CreateTaskModal } from "../../components/modal/CreateTaskModal";
 import { CreateGroupModal } from "../../components/modal/CreateGroupModal";
-import * as reminderService from "../../services/reminder";
+import * as taskService from "../../services/task";
 import * as groupService from "../../services/group";
 import * as activityService from "../../services/activity";
 import * as notificationService from "../../services/notification";
@@ -45,7 +45,7 @@ import { useAuthStore } from "../../store/authStore";
 import { formatDueDate, isOverdue } from "../../utils/formatDate";
 import { ROUTES } from "../../config/routes";
 import type {
-  Reminder,
+  Task,
   Group,
   ActivityLog,
   ActivityAction,
@@ -117,32 +117,44 @@ const ACT_CFG: Record<
   ActivityAction | "DEFAULT",
   { verb: string; color: string; icon: React.ElementType }
 > = {
-  REMINDER_CREATED: {
-    verb: "created reminder",
+  TASK_CREATED: {
+    verb: "created task",
     color:
       "bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.18)] text-indigo-600 dark:text-indigo-400",
     icon: Plus,
   },
-  REMINDER_UPDATED: {
-    verb: "updated reminder",
+  TASK_UPDATED: {
+    verb: "updated task",
     color:
       "bg-[#FFFBEB] dark:bg-[rgba(245,158,11,0.14)] text-[#B45309] dark:text-[#FCD34D]",
     icon: CheckSquare,
   },
-  REMINDER_COMPLETED: {
-    verb: "completed reminder",
+  TASK_COMPLETED: {
+    verb: "completed task",
     color:
       "bg-[#F0FDFA] dark:bg-[rgba(20,184,166,0.14)] text-teal-600 dark:text-teal-400",
     icon: CheckCircle2,
   },
-  REMINDER_DELETED: {
-    verb: "deleted reminder",
+  TASK_DELETED: {
+    verb: "deleted task",
     color:
       "bg-[#FFF1F2] dark:bg-[rgba(244,63,94,0.12)] text-[#F43F5E] dark:text-[#FB7185]",
     icon: AlertTriangle,
   },
-  REMINDER_OVERDUE: {
-    verb: "overdue reminder",
+  TASK_OVERDUE: {
+    verb: "overdue task",
+    color:
+      "bg-[#FFF1F2] dark:bg-[rgba(244,63,94,0.12)] text-[#F43F5E] dark:text-[#FB7185]",
+    icon: AlertTriangle,
+  },
+  SUBTASK_CREATED: {
+    verb: "created sub-task",
+    color:
+      "bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.18)] text-indigo-600 dark:text-indigo-400",
+    icon: Plus,
+  },
+  SUBTASK_DELETED: {
+    verb: "deleted sub-task",
     color:
       "bg-[#FFF1F2] dark:bg-[rgba(244,63,94,0.12)] text-[#F43F5E] dark:text-[#FB7185]",
     icon: AlertTriangle,
@@ -384,16 +396,16 @@ function MiniBarChart({
   );
 }
 
-// ─── Upcoming reminder row ────────────────────────────────────────────────────
+// ─── Upcoming task row ─────────────────────────────────────────────────────────
 
 function UpcomingRow({
-  reminder,
+  task,
   onClick,
 }: {
-  reminder: Reminder;
+  task: Task;
   onClick: () => void;
 }) {
-  const due = new Date(reminder.dueDateTime);
+  const due = new Date(task.dueDateTime);
   const now = new Date();
   const diffH = Math.round((due.getTime() - now.getTime()) / 3600000);
   const isDueToday = due.toDateString() === now.toDateString();
@@ -411,7 +423,7 @@ function UpcomingRow({
       ? "< 1h left"
       : diffH < 24
         ? `${diffH}h left`
-        : formatDueDate(reminder.dueDateTime);
+        : formatDueDate(task.dueDateTime);
 
   const timeColor = isLate
     ? "text-[#F43F5E] dark:text-[#FB7185]"
@@ -431,11 +443,11 @@ function UpcomingRow({
     >
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-[#0F172A] dark:text-[#F0F6FC] truncate">
-          {reminder.title}
+          {task.title}
         </p>
-        {reminder.groupId && (
+        {task.groupId && (
           <p className="text-[10px] text-[#94A3B8] truncate mt-0.5">
-            {(reminder.groupId as { name: string }).name}
+            {(task.groupId as { name: string }).name}
           </p>
         )}
       </div>
@@ -446,14 +458,14 @@ function UpcomingRow({
         <div
           className={cn(
             "text-[10px] px-1.5 py-0.5 rounded-full mt-0.5 inline-block font-medium",
-            reminder.priority === "HIGH"
+            task.priority === "HIGH"
               ? "bg-[#FFF1F2] dark:bg-[rgba(244,63,94,0.12)] text-[#BE123C] dark:text-[#FDA4AF]"
-              : reminder.priority === "MEDIUM"
+              : task.priority === "MEDIUM"
                 ? "bg-[#FFFBEB] dark:bg-[rgba(245,158,11,0.12)] text-[#B45309] dark:text-[#FCD34D]"
                 : "bg-[#F8FAFC] dark:bg-[rgba(148,163,184,0.08)] text-[#64748B]",
           )}
         >
-          {reminder.priority}
+          {task.priority}
         </div>
       </div>
     </button>
@@ -466,7 +478,7 @@ function ActivityItem({ log }: { log: ActivityLog }) {
   const cfg = getActCfg(log.action);
   const Icon = cfg.icon;
   const subject =
-    (log.reminderId as { title?: string } | null)?.title ??
+    (log.taskId as { title?: string } | null)?.title ??
     (log.groupId as { name?: string } | null)?.name ??
     "";
 
@@ -633,7 +645,7 @@ export const DashboardPage = () => {
   const { user } = useAuthStore();
 
   // ── Data state ────────────────────────────────────────────────────────────
-  const [allReminders, setAllReminders] = useState<Reminder[]>([]);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -645,7 +657,7 @@ export const DashboardPage = () => {
   const [groupFilter, setGroupFilter] = useState<string>("all");
 
   // ── Modal state ───────────────────────────────────────────────────────────
-  const [createReminderOpen, setCreateReminderOpen] = useState(false);
+  const [createTaskOpen, setCreateTaskOpen] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
 
   // ── Greeting ──────────────────────────────────────────────────────────────
@@ -658,16 +670,16 @@ export const DashboardPage = () => {
   const fetchAll = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [remResult, grpData, actResult, notifResult] =
+      const [taskResult, grpData, actResult, notifResult] =
         await Promise.allSettled([
-          reminderService.getReminders({ limit: 200 }),
+          taskService.getTasks({ limit: 200 }),
           groupService.getGroups(),
           activityService.getUserActivity({ limit: 10 }),
           notificationService.getNotifications({ limit: 1 }),
         ]);
 
-      if (remResult.status === "fulfilled")
-        setAllReminders(remResult.value.reminders);
+      if (taskResult.status === "fulfilled")
+        setAllTasks(taskResult.value.tasks);
       if (grpData.status === "fulfilled") setGroups(grpData.value);
       if (actResult.status === "fulfilled") setActivity(actResult.value.logs);
       if (notifResult.status === "fulfilled")
@@ -681,9 +693,9 @@ export const DashboardPage = () => {
     fetchAll();
   }, [fetchAll]);
 
-  // ── Filtered reminders ────────────────────────────────────────────────────
+  // ── Filtered tasks ─────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    return allReminders.filter((r) => {
+    return allTasks.filter((r) => {
       // Group filter
       if (groupFilter !== "all") {
         const gId = typeof r.groupId === "object" ? r.groupId?._id : r.groupId;
@@ -696,7 +708,7 @@ export const DashboardPage = () => {
       if (!isInPeriod(r.dueDateTime, timeFilter)) return false;
       return true;
     });
-  }, [allReminders, groupFilter, priorityFilter, timeFilter]);
+  }, [allTasks, groupFilter, priorityFilter, timeFilter]);
 
   // ── Stats derived from filtered set ──────────────────────────────────────
   const stats = useMemo<DashStats>(() => {
@@ -712,14 +724,14 @@ export const DashboardPage = () => {
     const todayEnd = startOfDay(1);
     const weekEnd = startOfDay(7);
 
-    const dueTodayCount = allReminders.filter(
+    const dueTodayCount = allTasks.filter(
       (r) =>
         r.status === "PENDING" &&
         new Date(r.dueDateTime) >= todayStart &&
         new Date(r.dueDateTime) < todayEnd,
     ).length;
 
-    const dueWeekCount = allReminders.filter(
+    const dueWeekCount = allTasks.filter(
       (r) =>
         r.status === "PENDING" &&
         new Date(r.dueDateTime) >= todayStart &&
@@ -737,13 +749,13 @@ export const DashboardPage = () => {
       groupCount: groups.length,
       unreadNotif: unreadCount,
     };
-  }, [filtered, allReminders, groups, unreadCount]);
+  }, [filtered, allTasks, groups, unreadCount]);
 
-  // ── Upcoming reminders (next 7 days, pending only, from unfiltered) ───────
+  // ── Upcoming tasks (next 7 days, pending only, from unfiltered) ───────────
   const upcoming = useMemo(() => {
     const now = new Date();
     const week = startOfDay(7);
-    return allReminders
+    return allTasks
       .filter(
         (r) =>
           r.status === "PENDING" &&
@@ -755,16 +767,16 @@ export const DashboardPage = () => {
           new Date(a.dueDateTime).getTime() - new Date(b.dueDateTime).getTime(),
       )
       .slice(0, 5);
-  }, [allReminders]);
+  }, [allTasks]);
 
   // ── Overdue (from unfiltered, for alert banner) ───────────────────────────
-  const overdueReminders = useMemo(() => {
-    return allReminders.filter(
+  const overdueTasks = useMemo(() => {
+    return allTasks.filter(
       (r) =>
         r.status === "OVERDUE" ||
         (r.status === "PENDING" && isOverdue(r.dueDateTime, r.status)),
     );
-  }, [allReminders]);
+  }, [allTasks]);
 
   // ── Weekly bar chart data (completions per day) ───────────────────────────
   const weekBarData = useMemo(() => {
@@ -776,7 +788,7 @@ export const DashboardPage = () => {
       const targetDate = new Date(now);
       targetDate.setDate(now.getDate() + offset);
       const dayStr = targetDate.toDateString();
-      const count = allReminders.filter(
+      const count = allTasks.filter(
         (r) =>
           r.status === "COMPLETED" &&
           r.completedAt &&
@@ -784,7 +796,7 @@ export const DashboardPage = () => {
       ).length;
       return { label, value: count, max: 0 };
     });
-  }, [allReminders]);
+  }, [allTasks]);
 
   const barMax = Math.max(...weekBarData.map((d) => d.value), 1);
   const barDataWithMax = weekBarData.map((d) => ({ ...d, max: barMax }));
@@ -824,7 +836,7 @@ export const DashboardPage = () => {
             </h2>
             <p className="text-sm text-[#94A3B8] mt-0.5">
               {stats.dueTodayCount > 0
-                ? `You have ${stats.dueTodayCount} reminder${stats.dueTodayCount > 1 ? "s" : ""} due today.`
+                ? `You have ${stats.dueTodayCount} task${stats.dueTodayCount > 1 ? "s" : ""} due today.`
                 : "You're all caught up for today 🎉"}
             </p>
           </div>
@@ -858,15 +870,15 @@ export const DashboardPage = () => {
             <Button
               size="sm"
               leftIcon={<Plus className="w-3.5 h-3.5" />}
-              onClick={() => setCreateReminderOpen(true)}
+              onClick={() => setCreateTaskOpen(true)}
             >
-              New Reminder
+              New Task
             </Button>
           </div>
         </div>
 
         {/* ── Overdue alert banner ─────────────────────────────────────────── */}
-        {overdueReminders.length > 0 && (
+        {overdueTasks.length > 0 && (
           <div
             className={cn(
               "flex items-center gap-3 p-4 rounded-xl border",
@@ -879,22 +891,22 @@ export const DashboardPage = () => {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-[#BE123C] dark:text-[#FDA4AF]">
-                {overdueReminders.length} overdue reminder
-                {overdueReminders.length > 1 ? "s" : ""}
+                {overdueTasks.length} overdue task
+                {overdueTasks.length > 1 ? "s" : ""}
               </p>
               <p className="text-xs text-[#F43F5E]/80 dark:text-[#FDA4AF]/80 truncate">
-                {overdueReminders
+                {overdueTasks
                   .slice(0, 2)
                   .map((r) => r.title)
                   .join(", ")}
-                {overdueReminders.length > 2 &&
-                  ` +${overdueReminders.length - 2} more`}
+                {overdueTasks.length > 2 &&
+                  ` +${overdueTasks.length - 2} more`}
               </p>
             </div>
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => navigate(ROUTES.REMINDERS)}
+              onClick={() => navigate(ROUTES.TASKS)}
             >
               View all
             </Button>
@@ -925,7 +937,7 @@ export const DashboardPage = () => {
             border="border-[#E2E6ED] dark:border-[#21262D] hover:border-indigo-200 dark:hover:border-[rgba(99,102,241,0.30)]"
             glow="hover:shadow-[0_4px_20px_rgba(79,70,229,0.10)] dark:hover:shadow-[0_4px_20px_rgba(99,102,241,0.18)]"
             trend={`${stats.dueWeekCount} due this week`}
-            onClick={() => navigate(ROUTES.REMINDERS)}
+            onClick={() => navigate(ROUTES.TASKS)}
           />
           <StatCard
             label="Completed"
@@ -936,7 +948,7 @@ export const DashboardPage = () => {
             border="border-[#E2E6ED] dark:border-[#21262D] hover:border-teal-200 dark:hover:border-[rgba(20,184,166,0.30)]"
             glow="hover:shadow-[0_4px_20px_rgba(20,184,166,0.10)] dark:hover:shadow-[0_4px_20px_rgba(20,184,166,0.18)]"
             trend={`${stats.completionPct}% completion rate`}
-            onClick={() => navigate(ROUTES.REMINDERS)}
+            onClick={() => navigate(ROUTES.TASKS)}
           />
           <StatCard
             label="Overdue"
@@ -947,7 +959,7 @@ export const DashboardPage = () => {
             border="border-[#E2E6ED] dark:border-[#21262D] hover:border-[#FECDD3] dark:hover:border-[rgba(244,63,94,0.30)]"
             glow="hover:shadow-[0_4px_20px_rgba(244,63,94,0.10)] dark:hover:shadow-[0_4px_20px_rgba(244,63,94,0.18)]"
             trend={stats.overdue > 0 ? "Needs attention" : "Looking good!"}
-            onClick={() => navigate(ROUTES.REMINDERS)}
+            onClick={() => navigate(ROUTES.TASKS)}
           />
           <StatCard
             label="Groups"
@@ -1071,7 +1083,7 @@ export const DashboardPage = () => {
             </div>
           </div>
 
-          {/* ── Center: Upcoming reminders ───────────────────────────────── */}
+          {/* ── Center: Upcoming tasks ───────────────────────────────────── */}
           <div className="lg:col-span-1 rounded-xl border border-[#E2E6ED] dark:border-[#21262D] bg-white dark:bg-[#161B22] p-5 flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -1081,7 +1093,7 @@ export const DashboardPage = () => {
                 <p className="text-xs text-[#94A3B8] mt-0.5">Next 7 days</p>
               </div>
               <button
-                onClick={() => navigate(ROUTES.REMINDERS)}
+                onClick={() => navigate(ROUTES.TASKS)}
                 className="flex items-center gap-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
               >
                 View all <ChevronRight className="w-3 h-3" />
@@ -1107,16 +1119,16 @@ export const DashboardPage = () => {
                 {upcoming.map((r) => (
                   <UpcomingRow
                     key={r._id}
-                    reminder={r}
-                    onClick={() => navigate(ROUTES.REMINDERS)}
+                    task={r}
+                    onClick={() => navigate(ROUTES.TASKS)}
                   />
                 ))}
                 {stats.dueWeekCount > 5 && (
                   <button
-                    onClick={() => navigate(ROUTES.REMINDERS)}
+                    onClick={() => navigate(ROUTES.TASKS)}
                     className="w-full text-center text-xs text-[#94A3B8] hover:text-indigo-600 dark:hover:text-indigo-400 py-2 transition-colors duration-[250ms]"
                   >
-                    +{stats.dueWeekCount - 5} more reminders this week
+                    +{stats.dueWeekCount - 5} more tasks this week
                   </button>
                 )}
               </div>
@@ -1204,12 +1216,12 @@ export const DashboardPage = () => {
         </div>
 
         {/* ── Empty state for completely new users ─────────────────────────── */}
-        {allReminders.length === 0 && groups.length === 0 && !isLoading && (
+        {allTasks.length === 0 && groups.length === 0 && !isLoading && (
           <Card glass>
             <EmptyState
               icon={<LayoutDashboard className="w-8 h-8" />}
               title="Welcome to TeamTasks!"
-              description="Create your first reminder or set up a group to start collaborating with your team."
+              description="Create your first task or set up a group to start collaborating with your team."
               action={
                 <div className="flex items-center gap-3 justify-center">
                   <Button
@@ -1223,9 +1235,9 @@ export const DashboardPage = () => {
                   <Button
                     size="sm"
                     leftIcon={<Plus className="w-3.5 h-3.5" />}
-                    onClick={() => setCreateReminderOpen(true)}
+                    onClick={() => setCreateTaskOpen(true)}
                   >
-                    Create Reminder
+                    Create Task
                   </Button>
                 </div>
               }
@@ -1235,9 +1247,9 @@ export const DashboardPage = () => {
       </div>
 
       {/* Modals */}
-      <CreateReminderModal
-        isOpen={createReminderOpen}
-        onClose={() => setCreateReminderOpen(false)}
+      <CreateTaskModal
+        isOpen={createTaskOpen}
+        onClose={() => setCreateTaskOpen(false)}
       />
       <CreateGroupModal
         isOpen={createGroupOpen}

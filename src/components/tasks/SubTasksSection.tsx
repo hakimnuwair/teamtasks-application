@@ -1,20 +1,20 @@
 /**
- * components/reminders/SubRemindersSection.tsx
+ * components/tasks/SubTasksSection.tsx
  *
- * Shows a parent reminder's sub-reminders (its execution plan) and lets the
+ * Shows a parent task's sub-tasks (its execution plan) and lets the
  * creator add/delete items while assignees can view and complete them.
- * Rendered inline on the Reminder Details page — not a modal.
+ * Rendered inline on the Task Details page — not a modal.
  *
- * Manual add form submits one sub-reminder at a time and appends to the list
- * immediately. "Generate with AI" (GenerateSubtasksModal) is a separate,
- * ephemeral review flow (useAiSubtaskDraft) — nothing is persisted until the
+ * Manual add form submits one sub-task at a time and appends to the list
+ * immediately. "Generate with AI" (GenerateSubTasksModal) is a separate,
+ * ephemeral review flow (useAiSubTaskDraft) — nothing is persisted until the
  * user confirms there, at which point it calls the batch-create endpoint
  * once and this component just reloads the list (fetch()).
  */
 import { useState, useEffect } from "react";
 import { Circle, CheckCircle2, Trash2, Clock, Plus, Sparkles } from "lucide-react";
 import { DeleteConfirmModal } from "../modal/DeleteConfirmationModal";
-import { GenerateSubtasksModal } from "./GenerateSubtasksModal";
+import { GenerateSubTasksModal } from "./GenerateSubTasksModal";
 import {
   Button,
   Field,
@@ -27,13 +27,13 @@ import {
 } from "../ui";
 import { cn } from "../../utils/cn";
 import { formatDueDate } from "../../utils/formatDate";
-import { useSubReminders } from "../../hooks/useSubReminders";
+import { useSubTasks } from "../../hooks/useSubTasks";
 import { useAuthStore } from "../../store/authStore";
-import { parseForm, createSubReminderSchema } from "../../lib/validations";
-import type { Reminder, Priority } from "../../types/types";
+import { parseForm, createSubTaskSchema } from "../../lib/validations";
+import type { Task, Priority } from "../../types/types";
 
 interface Props {
-  reminder: Reminder;
+  task: Task;
 }
 
 const PRIORITIES: { value: Priority; label: string; dot: string }[] = [
@@ -51,9 +51,9 @@ const INIT_FORM = {
 
 type FormErrors = Partial<Record<keyof typeof INIT_FORM, string>>;
 
-export function SubRemindersSection({ reminder }: Props) {
-  const { subReminders, isLoading, fetch, create, complete, remove } =
-    useSubReminders(reminder._id);
+export function SubTasksSection({ task }: Props) {
+  const { subTasks, isLoading, fetch, create, complete, remove } =
+    useSubTasks(task._id);
   const { user } = useAuthStore();
   const myId = user?.id ?? user?._id ?? "";
 
@@ -70,16 +70,16 @@ export function SubRemindersSection({ reminder }: Props) {
     fetch();
     setForm(INIT_FORM);
     setErrors({});
-  }, [reminder._id]);
+  }, [task._id]);
 
-  // Sub-reminders are the reminder's execution plan — only the creator plans it
+  // Sub-tasks are the task's execution plan — only the creator plans it
   // (creates/deletes items); assignees execute it (view + complete only).
   // Any other active group member gets read-only access (view only).
-  const isCreator = reminder.createdBy._id === myId;
-  const isAssignedToMe = reminder.assignedUsers.some((u) => u._id === myId);
+  const isCreator = task.createdBy._id === myId;
+  const isAssignedToMe = task.assignedUsers.some((u) => u._id === myId);
   const canComplete = isCreator || isAssignedToMe;
-  const parentCompleted = reminder.status === "COMPLETED";
-  const doneCount = subReminders.filter((s) => s.status === "COMPLETED").length;
+  const parentCompleted = task.status === "COMPLETED";
+  const doneCount = subTasks.filter((s) => s.status === "COMPLETED").length;
 
   const setField = <K extends keyof typeof INIT_FORM>(
     key: K,
@@ -90,7 +90,7 @@ export function SubRemindersSection({ reminder }: Props) {
   };
 
   const handleAdd = async () => {
-    const { data, errors: zodErrors } = parseForm(createSubReminderSchema, {
+    const { data, errors: zodErrors } = parseForm(createSubTaskSchema, {
       title: form.title,
       description: form.description || undefined,
       dueDateTime: form.dueDateTime,
@@ -132,11 +132,11 @@ export function SubRemindersSection({ reminder }: Props) {
     <>
       <Card className="space-y-5">
         <SectionHeader
-          title="Sub-reminders"
+          title="Sub-tasks"
           subtitle={
-            subReminders.length > 0
-              ? `${doneCount} of ${subReminders.length} completed`
-              : "Break this reminder down into smaller steps"
+            subTasks.length > 0
+              ? `${doneCount} of ${subTasks.length} completed`
+              : "Break this task down into smaller steps"
           }
           action={
             isCreator &&
@@ -153,12 +153,12 @@ export function SubRemindersSection({ reminder }: Props) {
           }
         />
 
-        {subReminders.length > 0 && (
+        {subTasks.length > 0 && (
           <div className="h-1.5 rounded-full bg-[#EEF0F4] dark:bg-[#21262D] -mt-3">
             <div
               className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-teal-500 transition-all duration-700"
               style={{
-                width: `${Math.round((doneCount / subReminders.length) * 100)}%`,
+                width: `${Math.round((doneCount / subTasks.length) * 100)}%`,
               }}
             />
           </div>
@@ -171,15 +171,15 @@ export function SubRemindersSection({ reminder }: Props) {
               <SkeletonLine key={i} className="h-14 w-full rounded-xl" />
             ))}
           </div>
-        ) : subReminders.length === 0 ? (
+        ) : subTasks.length === 0 ? (
           <EmptyState
             icon={<CheckCircle2 className="w-7 h-7" />}
-            title="No sub-reminders yet"
-            description="Break this reminder down into smaller steps below."
+            title="No sub-tasks yet"
+            description="Break this task down into smaller steps below."
           />
         ) : (
           <div className="space-y-2">
-            {subReminders.map((sub) => {
+            {subTasks.map((sub) => {
               const done = sub.status === "COMPLETED";
               return (
                 <div
@@ -265,11 +265,11 @@ export function SubRemindersSection({ reminder }: Props) {
 
         {!isCreator ? (
           <p className="text-xs text-[#94A3B8]">
-            Only the reminder creator can add or remove sub-reminders.
+            Only the task creator can add or remove sub-tasks.
           </p>
         ) : parentCompleted ? (
           <p className="text-xs text-[#94A3B8]">
-            This reminder is already completed — sub-reminders can no longer
+            This task is already completed — sub-tasks can no longer
             be added.
           </p>
         ) : (
@@ -339,7 +339,7 @@ export function SubRemindersSection({ reminder }: Props) {
               onClick={handleAdd}
               isLoading={isSubmitting}
             >
-              Add Sub-reminder
+              Add Sub-task
             </Button>
           </div>
         )}
@@ -353,8 +353,8 @@ export function SubRemindersSection({ reminder }: Props) {
       />
 
       {isCreator && (
-        <GenerateSubtasksModal
-          reminder={reminder}
+        <GenerateSubTasksModal
+          task={task}
           isOpen={aiModalOpen}
           onClose={() => setAiModalOpen(false)}
           onConfirmed={fetch}

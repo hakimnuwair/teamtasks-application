@@ -2,7 +2,7 @@
  * components/modal/SlideModal.tsx
  *
  * Reusable slide-in-from-right modal shell.
- * Used by: CreateReminderModal, CreateGroupModal, and any future panel.
+ * Used by: CreateTaskModal, CreateGroupModal, and any future panel.
  *
  * STYLE DECISIONS:
  *  Backdrop   → rgba(0,0,0,0.40) light / rgba(0,0,0,0.65) dark — §6

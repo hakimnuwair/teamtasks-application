@@ -68,7 +68,7 @@ export const DashboardPage = () => (
         description="Build out charts, activity feed, and quick actions here."
         action={
           <Button size="sm" variant="outline">
-            View Reminders
+            View Tasks
           </Button>
         }
       />
@@ -90,7 +90,7 @@ export const GroupsPage = () => (
       <EmptyState
         icon={<Users className="w-8 h-8" />}
         title="No groups yet"
-        description="Create a group to collaborate with your team on shared reminders."
+        description="Create a group to collaborate with your team on shared tasks."
         action={
           <Button leftIcon={<Plus className="w-4 h-4" />} size="sm">
             Create Group
@@ -109,7 +109,7 @@ export const GroupDetailPage = () => (
       <EmptyState
         icon={<Users className="w-8 h-8" />}
         title="Group detail coming soon"
-        description="View members, reminders, and activity for this group."
+        description="View members, tasks, and activity for this group."
       />
     </Card>
   </div>
@@ -123,7 +123,7 @@ export const NotificationsPage = () => (
       <EmptyState
         icon={<Bell className="w-8 h-8" />}
         title="All caught up!"
-        description="No new notifications. Actions and reminders will appear here."
+        description="No new notifications. Actions and tasks will appear here."
       />
     </Card>
   </div>

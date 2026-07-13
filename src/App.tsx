@@ -21,8 +21,8 @@ import { LoginPage } from "./pages/auth/Login";
 import { RegisterPage } from "./pages/auth/Register";
 import { ForgotPasswordPage } from "./pages/auth/ForgotPassowrd";
 import { OAuthCallbackPage } from "./pages/auth/OAuthCallback";
-import { RemindersPage } from "./pages/reminders/Reminders";
-import { ReminderDetailPage } from "./pages/reminders/ReminderDetails";
+import { TasksPage } from "./pages/tasks/Tasks";
+import { TaskDetailPage } from "./pages/tasks/TaskDetails";
 import { GroupsPage } from "./pages/groups/Groups";
 import { GroupDetailPage } from "./pages/groups/GroupDetails";
 import { NotificationsPage } from "./pages/notifications/Notification";
@@ -85,8 +85,8 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
             <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
-            <Route path={ROUTES.REMINDERS} element={<RemindersPage />} />
-            <Route path="/reminders/:id" element={<ReminderDetailPage />} />
+            <Route path={ROUTES.TASKS} element={<TasksPage />} />
+            <Route path="/tasks/:id" element={<TaskDetailPage />} />
             <Route path={ROUTES.GROUPS} element={<GroupsPage />} />
             <Route path="/groups/:id" element={<GroupDetailPage />} />
             <Route

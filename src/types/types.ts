@@ -8,7 +8,7 @@ export interface ApiResponse<T> {
 
 export interface PaginatedResponse<T> {
   success: boolean;
-  reminders?: T[];
+  tasks?: T[];
   groups?: T[];
   logs?: T[];
   notifications?: T[];
@@ -85,9 +85,9 @@ export interface InviteMemberPayload {
   role?: GroupRole;
 }
 
-// ─── REMINDER ─────────────────────────────────────────────────────────────────
+// ─── TASK ─────────────────────────────────────────────────────────────────────
 
-export type ReminderStatus = "PENDING" | "COMPLETED" | "OVERDUE";
+export type TaskStatus = "PENDING" | "COMPLETED" | "OVERDUE";
 export type Priority = "LOW" | "MEDIUM" | "HIGH";
 export type Recurrence = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
 
@@ -97,7 +97,7 @@ export interface UserCompletion {
   completedAt: string;
 }
 
-export interface Reminder {
+export interface Task {
   _id: string;
   title: string;
   description: string;
@@ -106,19 +106,19 @@ export interface Reminder {
   groupId: { _id: string; name: string } | null;
   createdBy: { _id: string; name: string; email: string };
   assignedUsers: { _id: string; name: string; email: string }[];
-  // Per-user completions — present on group reminders
+  // Per-user completions — present on group tasks
   userCompletions: UserCompletion[];
   // Top-level status — COMPLETED only when ALL assigned users complete
-  status: ReminderStatus;
+  status: TaskStatus;
   priority: Priority;
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  // Set when this Reminder is a sub-reminder of another Reminder; null/undefined for top-level reminders
+  // Set when this Task is a sub-task of another Task; null/undefined for top-level tasks
   parentId?: string | null;
 }
 
-export interface CreateReminderPayload {
+export interface CreateTaskPayload {
   title: string;
   description?: string;
   dueDateTime: string;
@@ -128,18 +128,18 @@ export interface CreateReminderPayload {
   priority?: Priority;
 }
 
-// Sub-reminders inherit groupId/assignedUsers from the parent and never recur
-export interface CreateSubReminderPayload {
+// Sub-tasks inherit groupId/assignedUsers from the parent and never recur
+export interface CreateSubTaskPayload {
   title: string;
   description?: string;
   dueDateTime: string;
   priority?: Priority;
 }
 
-// Returned by POST /reminders/:id/sub-reminders/generate — same fields as
-// CreateSubReminderPayload, but always fully present (the backend fills
+// Returned by POST /tasks/:id/sub-tasks/generate — same fields as
+// CreateSubTaskPayload, but always fully present (the backend fills
 // defaults and re-validates before returning suggestions).
-export interface AiSubtaskSuggestion {
+export interface AiSubTaskSuggestion {
   title: string;
   description: string;
   dueDateTime: string;
@@ -148,22 +148,22 @@ export interface AiSubtaskSuggestion {
 
 // Client-only shape for the AI-review draft list — adds a local tempId for
 // React keys/edit/remove before anything is persisted. Never sent to the API.
-export interface DraftSubtask extends AiSubtaskSuggestion {
+export interface DraftSubTask extends AiSubTaskSuggestion {
   tempId: string;
 }
 
 // ─── NOTIFICATION ─────────────────────────────────────────────────────────────
 
 export type NotificationType =
-  | "REMINDER_DUE"
+  | "TASK_DUE"
   | "GROUP_INVITE"
-  | "REMINDER_ASSIGNED"
+  | "TASK_ASSIGNED"
   | "SYSTEM";
 
 export interface Notification {
   _id: string;
   userId: string;
-  reminderId: { _id: string; title: string; dueDateTime: string } | null;
+  taskId: { _id: string; title: string; dueDateTime: string } | null;
   groupId: { _id: string; name: string } | null;
   type: NotificationType;
   message: string;
@@ -186,17 +186,19 @@ export type ActivityAction =
   | "GROUP_INVITATION_ACCEPTED"
   | "GROUP_INVITATION_DECLINED"
   | "GROUP_INVITATION_CANCELLED"
-  | "REMINDER_CREATED"
-  | "REMINDER_UPDATED"
-  | "REMINDER_DELETED"
-  | "REMINDER_COMPLETED"
-  | "REMINDER_OVERDUE";
+  | "TASK_CREATED"
+  | "TASK_UPDATED"
+  | "TASK_DELETED"
+  | "TASK_COMPLETED"
+  | "TASK_OVERDUE"
+  | "SUBTASK_CREATED"
+  | "SUBTASK_DELETED";
 
 export interface ActivityLog {
   _id: string;
   userId: { _id: string; name: string; email: string };
   groupId: { _id: string; name: string } | null;
-  reminderId: { _id: string; title: string } | null;
+  taskId: { _id: string; title: string } | null;
   action: ActivityAction;
   metadata: Record<string, unknown>;
   createdAt: string;

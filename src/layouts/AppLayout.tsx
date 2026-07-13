@@ -8,7 +8,7 @@
  *     The badge lives in the sidebar/topbar on every page, so it must be populated
  *     immediately after login regardless of which page the user lands on.
  *   • Groups — NOT fetched here. useGroups hook fetches lazily when a page that
- *     needs groups mounts (Groups page, GroupDetail, CreateReminderModal).
+ *     needs groups mounts (Groups page, GroupDetail, CreateTaskModal).
  *     This avoids a redundant fetch on every AppLayout mount.
  *
  * Architecture: AppLayout → useNotifications → notificationStore ← notificationService
@@ -41,7 +41,7 @@ import { cn } from "../utils/cn";
 // ── Nav items ────────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
   { to: ROUTES.DASHBOARD, icon: LayoutDashboard, label: "Dashboard" },
-  { to: ROUTES.REMINDERS, icon: CheckSquare, label: "Reminders" },
+  { to: ROUTES.TASKS, icon: CheckSquare, label: "Tasks" },
   { to: ROUTES.GROUPS, icon: Users, label: "Groups" },
   { to: ROUTES.NOTIFICATIONS, icon: Bell, label: "Notifications" },
   { to: ROUTES.ACTIVITY, icon: Activity, label: "Activity" },
@@ -50,7 +50,7 @@ const NAV_ITEMS = [
 
 const getPageTitle = (pathname: string): string => {
   if (pathname === ROUTES.DASHBOARD) return "Dashboard";
-  if (pathname === ROUTES.REMINDERS) return "My Reminders";
+  if (pathname === ROUTES.TASKS) return "My Tasks";
   if (pathname === ROUTES.GROUPS) return "Groups";
   if (pathname.startsWith("/groups/")) return "Group Detail";
   if (pathname === ROUTES.NOTIFICATIONS) return "Notifications";

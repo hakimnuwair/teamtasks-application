@@ -97,7 +97,7 @@ export const useGroups = () => {
   /**
    * Fetches full group detail (with populated members) for a single group.
    * Result is returned, not stored globally — callers own the state.
-   * Used by CreateReminderModal to load member list for Specific assignment.
+   * Used by CreateTaskModal to load member list for Specific assignment.
    */
   const getGroupById = async (id: string) => {
     const data = await groupService.getGroupById(id);

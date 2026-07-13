@@ -1,10 +1,10 @@
 /**
- * pages/reminders/ReminderDetails.tsx
+ * pages/tasks/TaskDetails.tsx
  *
- * Architecture: ReminderDetailPage → useReminderDetail (hook) → reminderService
+ * Architecture: TaskDetailPage → useTaskDetail (hook) → taskService
  *
- * The single place to view a reminder, manage its execution plan
- * (sub-reminders), view progress, complete it, and delete it — mirrors
+ * The single place to view a task, manage its execution plan
+ * (sub-tasks), view progress, complete it, and delete it — mirrors
  * GroupDetailPage's structure (header + stat/body cards), minus tabs.
  */
 import { useEffect, useState } from "react";
@@ -20,15 +20,15 @@ import {
 } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { Button, Badge, AvatarStack, Spinner, EmptyState, Card } from "../../components/ui";
-import { SubRemindersSection } from "../../components/reminders/SubRemindersSection";
+import { SubTasksSection } from "../../components/tasks/SubTasksSection";
 import { DeleteConfirmModal } from "../../components/modal/DeleteConfirmationModal";
-import { useReminderDetail } from "../../hooks/useReminderDetail";
+import { useTaskDetail } from "../../hooks/useTaskDetail";
 import { useAuthStore } from "../../store/authStore";
 import { formatDueDate, isOverdue } from "../../utils/formatDate";
 import { parseApiError } from "../../config/axios";
-import type { ReminderStatus, Priority } from "../../types/types";
+import type { TaskStatus, Priority } from "../../types/types";
 
-const STATUS_VARIANT: Record<ReminderStatus, "pending" | "completed" | "overdue"> = {
+const STATUS_VARIANT: Record<TaskStatus, "pending" | "completed" | "overdue"> = {
   PENDING: "pending",
   COMPLETED: "completed",
   OVERDUE: "overdue",
@@ -39,14 +39,14 @@ const PRIORITY_VARIANT: Record<Priority, "high" | "medium" | "low"> = {
   LOW: "low",
 };
 
-export const ReminderDetailPage = () => {
+export const TaskDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const myId = user?.id ?? user?._id ?? "";
 
-  const { reminder, isLoading, error, isCompleting, isDeleting, load, complete, remove } =
-    useReminderDetail(id);
+  const { task, isLoading, error, isCompleting, isDeleting, load, complete, remove } =
+    useTaskDetail(id);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
@@ -57,9 +57,9 @@ export const ReminderDetailPage = () => {
     try {
       await remove();
     } catch (err: unknown) {
-      throw new Error(parseApiError(err, "Could not delete reminder"));
+      throw new Error(parseApiError(err, "Could not delete task"));
     }
-    navigate("/reminders");
+    navigate("/tasks");
   };
 
   if (isLoading) {
@@ -67,26 +67,26 @@ export const ReminderDetailPage = () => {
       <div className="flex items-center justify-center min-h-64">
         <div className="flex flex-col items-center gap-3">
           <Spinner size="lg" />
-          <p className="text-sm text-[#94A3B8]">Loading reminder...</p>
+          <p className="text-sm text-[#94A3B8]">Loading task...</p>
         </div>
       </div>
     );
   }
 
-  if (error || !reminder) {
+  if (error || !task) {
     return (
       <Card>
         <EmptyState
           icon={<AlertTriangle className="w-8 h-8" />}
-          title="Reminder not found"
-          description={error ?? "This reminder may have been deleted."}
+          title="Task not found"
+          description={error ?? "This task may have been deleted."}
           action={
             <Button
               leftIcon={<ArrowLeft className="w-4 h-4" />}
               size="sm"
-              onClick={() => navigate("/reminders")}
+              onClick={() => navigate("/tasks")}
             >
-              Back to Reminders
+              Back to Tasks
             </Button>
           }
         />
@@ -94,27 +94,27 @@ export const ReminderDetailPage = () => {
     );
   }
 
-  const isCreator = reminder.createdBy._id === myId;
-  const isGroup = !!reminder.groupId;
-  const globalDone = reminder.status === "COMPLETED";
+  const isCreator = task.createdBy._id === myId;
+  const isGroup = !!task.groupId;
+  const globalDone = task.status === "COMPLETED";
   const iDone = isGroup
-    ? (reminder.userCompletions ?? []).some((uc) => {
+    ? (task.userCompletions ?? []).some((uc) => {
         const uid =
           typeof uc.userId === "string" ? uc.userId : (uc.userId as { _id: string })._id;
         return uid === myId;
       })
     : globalDone;
   const isAssignedToMe =
-    reminder.assignedUsers.length === 0 ||
-    reminder.assignedUsers.some((u) => u._id === myId);
+    task.assignedUsers.length === 0 ||
+    task.assignedUsers.some((u) => u._id === myId);
   // Reachable here only for a group member who is neither creator nor
   // assignee — the backend already restricts view access to creator/assignee/
   // active group member, so this can't be true for a non-member.
   const isReadOnly = !isCreator && !isAssignedToMe;
-  const overdue = isOverdue(reminder.dueDateTime, reminder.status);
+  const overdue = isOverdue(task.dueDateTime, task.status);
 
   const completedIds = new Set(
-    (reminder.userCompletions ?? []).map((uc) =>
+    (task.userCompletions ?? []).map((uc) =>
       typeof uc.userId === "string" ? uc.userId : (uc.userId as { _id: string })._id,
     ),
   );
@@ -124,7 +124,7 @@ export const ReminderDetailPage = () => {
       {/* Header */}
       <div className="flex items-start gap-3">
         <button
-          onClick={() => navigate("/reminders")}
+          onClick={() => navigate("/tasks")}
           className="mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F0F6FC] hover:bg-black/5 dark:hover:bg-white/5 transition-all duration-[250ms]"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -139,7 +139,7 @@ export const ReminderDetailPage = () => {
                   : "text-[#0F172A] dark:text-[#F0F6FC]",
               )}
             >
-              {reminder.title}
+              {task.title}
             </h2>
             <div className="flex items-center gap-2 shrink-0">
               {isReadOnly && (
@@ -176,16 +176,16 @@ export const ReminderDetailPage = () => {
             </div>
           </div>
           <div className="mt-2 flex items-center gap-2 flex-wrap">
-            <Badge variant={STATUS_VARIANT[reminder.status]}>
-              {reminder.status.charAt(0) + reminder.status.slice(1).toLowerCase()}
+            <Badge variant={STATUS_VARIANT[task.status]}>
+              {task.status.charAt(0) + task.status.slice(1).toLowerCase()}
             </Badge>
-            <Badge variant={PRIORITY_VARIANT[reminder.priority]} dot={false}>
-              {reminder.priority}
+            <Badge variant={PRIORITY_VARIANT[task.priority]} dot={false}>
+              {task.priority}
             </Badge>
-            {reminder.groupId && (
+            {task.groupId && (
               <span className="inline-flex items-center gap-1 text-[11px] font-medium uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.14)] px-2 py-0.5 rounded-full">
                 <Tag className="w-2.5 h-2.5" />
-                {reminder.groupId.name}
+                {task.groupId.name}
               </span>
             )}
             <span
@@ -195,7 +195,7 @@ export const ReminderDetailPage = () => {
               )}
             >
               {overdue ? <AlertTriangle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-              {formatDueDate(reminder.dueDateTime)}
+              {formatDueDate(task.dueDateTime)}
             </span>
           </div>
         </div>
@@ -203,22 +203,22 @@ export const ReminderDetailPage = () => {
 
       {/* Body */}
       <Card className="space-y-4">
-        {reminder.description && (
+        {task.description && (
           <p className="text-sm text-[#475569] dark:text-[#8B949E] leading-relaxed">
-            {reminder.description}
+            {task.description}
           </p>
         )}
         <div className="flex items-center gap-3 flex-wrap text-xs text-[#94A3B8]">
-          <span>Created by {reminder.createdBy.name}</span>
-          {reminder.assignedUsers.length > 0 && (
-            <AvatarStack users={reminder.assignedUsers} max={5} size="xs" />
+          <span>Created by {task.createdBy.name}</span>
+          {task.assignedUsers.length > 0 && (
+            <AvatarStack users={task.assignedUsers} max={5} size="xs" />
           )}
         </div>
 
-        {/* Per-member completion strip — only for group reminders with assigned users */}
-        {isGroup && reminder.assignedUsers.length > 0 && (
+        {/* Per-member completion strip — only for group tasks with assigned users */}
+        {isGroup && task.assignedUsers.length > 0 && (
           <div className="flex flex-wrap gap-1.5 border-t border-[#F1F5F9] dark:border-[#21262D] pt-3">
-            {reminder.assignedUsers.map((u) => {
+            {task.assignedUsers.map((u) => {
               const done = completedIds.has(u._id);
               const isMe = u._id === myId;
               return (
@@ -247,11 +247,11 @@ export const ReminderDetailPage = () => {
         )}
       </Card>
 
-      <SubRemindersSection reminder={reminder} />
+      <SubTasksSection task={task} />
 
       <DeleteConfirmModal
         isOpen={confirmOpen}
-        title={reminder.title}
+        title={task.title}
         onConfirm={handleDeleteConfirm}
         onCancel={() => setConfirmOpen(false)}
       />

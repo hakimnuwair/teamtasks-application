@@ -3,19 +3,19 @@
  *
  * Architecture: GroupDetailPage → useGroupDetail (hook) → services → backend
  *
- * Sub-components (ReminderRow, MembersTab, InviteModal, etc.) are pure UI.
+ * Sub-components (TaskRow, MembersTab, InviteModal, etc.) are pure UI.
  * The page component never imports or calls any service directly.
  * All data operations flow through useGroupDetail hook.
  *
- * Reminders:
- *   - ReminderRow is a read-only overview item; clicking it navigates to
- *     /reminders/:id (ReminderDetailPage), the single place to complete a
- *     reminder, delete it, and manage its sub-reminders.
+ * Tasks:
+ *   - TaskRow is a read-only overview item; clicking it navigates to
+ *     /tasks/:id (TaskDetailPage), the single place to complete a
+ *     task, delete it, and manage its sub-tasks.
  *   - Per-member completion pills show who is done / pending
  *
  * Group pre-fill:
- *   - CreateReminderModal receives defaultGroupId={group._id}
- *   - onCreated callback calls reloadReminders() for immediate update
+ *   - CreateTaskModal receives defaultGroupId={group._id}
+ *   - onCreated callback calls reloadTasks() for immediate update
  */
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -50,7 +50,7 @@ import {
   AsyncUserSelect,
   type SelectedUser,
 } from "../../components/ui/AsyncUserSelect";
-import { CreateReminderModal } from "../../components/modal/CreateReminderModal";
+import { CreateTaskModal } from "../../components/modal/CreateTaskModal";
 import { useGroupDetail } from "../../hooks/useGroupDetail";
 import { useAuthStore } from "../../store/authStore";
 import { formatDueDate, isOverdue } from "../../utils/formatDate";
@@ -59,7 +59,7 @@ import type {
   Group,
   GroupRole,
   GroupMember,
-  Reminder,
+  Task,
   GroupInvitation,
   InvitationStatus,
   SentInvite,
@@ -171,21 +171,21 @@ function InviteStatusBadge({ status }: { status: InvitationStatus }) {
   );
 }
 
-// ─── Reminder row ─────────────────────────────────────────────────────────────
-// Read-only overview item — clicking it navigates to /reminders/:id
-// (ReminderDetailPage), the single place to complete/delete a reminder and
-// manage its sub-reminders.
+// ─── Task row ──────────────────────────────────────────────────────────────────
+// Read-only overview item — clicking it navigates to /tasks/:id
+// (TaskDetailPage), the single place to complete/delete a task and
+// manage its sub-tasks.
 // Completion pills below show every assigned user's status.
 
-function ReminderRow({
-  reminder,
+function TaskRow({
+  task,
 }: {
-  reminder: Reminder;
+  task: Task;
 }) {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const myId = user?.id ?? user?._id ?? "";
-  const overdue = isOverdue(reminder.dueDateTime, reminder.status);
+  const overdue = isOverdue(task.dueDateTime, task.status);
   const sv: Record<string, "pending" | "completed" | "overdue"> = {
     PENDING: "pending",
     COMPLETED: "completed",
@@ -194,7 +194,7 @@ function ReminderRow({
 
   // Has the current user already completed this?
   const iDone =
-    reminder.userCompletions?.some((uc) => {
+    task.userCompletions?.some((uc) => {
       const uid =
         typeof uc.userId === "string"
           ? uc.userId
@@ -204,7 +204,7 @@ function ReminderRow({
 
   // Set of user IDs who have completed
   const completedIds = new Set(
-    (reminder.userCompletions ?? []).map((uc) =>
+    (task.userCompletions ?? []).map((uc) =>
       typeof uc.userId === "string"
         ? uc.userId
         : (uc.userId as { _id: string })._id,
@@ -213,7 +213,7 @@ function ReminderRow({
 
   return (
     <div
-      onClick={() => navigate(`/reminders/${reminder._id}`)}
+      onClick={() => navigate(`/tasks/${task._id}`)}
       className={cn(
         "rounded-xl border cursor-pointer transition-all duration-[250ms]",
         overdue
@@ -223,7 +223,7 @@ function ReminderRow({
     >
       {/* Main row */}
       <div className="flex items-start gap-3 p-4">
-        {/* Completion status — read-only, action moved to Reminder Details */}
+        {/* Completion status — read-only, action moved to Task Details */}
         <span
           title={iDone ? "You completed this" : "Not completed yet"}
           className={cn(
@@ -249,16 +249,16 @@ function ReminderRow({
             <p
               className={cn(
                 "text-sm font-medium tracking-wide",
-                reminder.status === "COMPLETED"
+                task.status === "COMPLETED"
                   ? "line-through text-[#94A3B8]"
                   : "text-[#0F172A] dark:text-[#F0F6FC]",
               )}
             >
-              {reminder.title}
+              {task.title}
             </p>
-            <Badge variant={sv[reminder.status]}>
-              {reminder.status.charAt(0) +
-                reminder.status.slice(1).toLowerCase()}
+            <Badge variant={sv[task.status]}>
+              {task.status.charAt(0) +
+                task.status.slice(1).toLowerCase()}
             </Badge>
           </div>
           <div className="flex items-center gap-3 mt-1.5 flex-wrap">
@@ -270,24 +270,24 @@ function ReminderRow({
                   : "text-[#94A3B8]",
               )}
             >
-              {formatDueDate(reminder.dueDateTime)}
+              {formatDueDate(task.dueDateTime)}
             </span>
             <Badge
               variant={
-                reminder.priority.toLowerCase() as "high" | "medium" | "low"
+                task.priority.toLowerCase() as "high" | "medium" | "low"
               }
               dot={false}
             >
-              {reminder.priority}
+              {task.priority}
             </Badge>
           </div>
         </div>
       </div>
 
       {/* Per-member completion pills */}
-      {reminder.assignedUsers.length > 0 && (
+      {task.assignedUsers.length > 0 && (
         <div className="px-4 pb-3 flex flex-wrap gap-1.5">
-          {reminder.assignedUsers.map((u) => {
+          {task.assignedUsers.map((u) => {
             const done = completedIds.has(u._id);
             return (
               <span
@@ -347,7 +347,7 @@ function ConfirmRemoveDialog({
             <span className="font-medium text-[#0F172A] dark:text-[#F0F6FC]">
               {name}
             </span>{" "}
-            from this group? They'll lose access to all group reminders.
+            from this group? They'll lose access to all group tasks.
           </p>
         </div>
         <div className="flex gap-2.5 pt-1">
@@ -524,7 +524,7 @@ function InviteModal({
           <p className="text-[11px] text-[#94A3B8] leading-relaxed">
             {role === "ADMIN"
               ? "Admins can manage members and settings."
-              : "Members can view and create reminders in the group."}
+              : "Members can view and create tasks in the group."}
           </p>
         </div>
 
@@ -875,7 +875,7 @@ function MembersTab({
             <EmptyState
               icon={<Users className="w-8 h-8" />}
               title="No members yet"
-              description="Invite people to collaborate on this group's reminders."
+              description="Invite people to collaborate on this group's tasks."
             />
           </Card>
         )}
@@ -892,13 +892,13 @@ export const GroupDetailPage = () => {
   // All data operations go through the hook — no service calls in this component
   const {
     group,
-    reminders,
+    tasks,
     myInvitations,
     isLoading,
     removingId,
     cancellingId,
     load,
-    reloadReminders,
+    reloadTasks,
     removeMember,
     respondToInvitation,
     cancelInvitation,
@@ -907,8 +907,8 @@ export const GroupDetailPage = () => {
     setSentInvites,
   } = useGroupDetail(id);
 
-  const [activeTab, setActiveTab] = useState<"reminders" | "members">(
-    "reminders",
+  const [activeTab, setActiveTab] = useState<"tasks" | "members">(
+    "tasks",
   );
   const [createOpen, setCreateOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -977,11 +977,11 @@ export const GroupDetailPage = () => {
 
   // ── Computed ──────────────────────────────────────────────────────────────
 
-  const pending = reminders.filter((r) => r.status === "PENDING").length;
-  const completed = reminders.filter((r) => r.status === "COMPLETED").length;
-  const overdue = reminders.filter((r) => r.status === "OVERDUE").length;
+  const pending = tasks.filter((r) => r.status === "PENDING").length;
+  const completed = tasks.filter((r) => r.status === "COMPLETED").length;
+  const overdue = tasks.filter((r) => r.status === "OVERDUE").length;
   const pct =
-    reminders.length > 0 ? Math.round((completed / reminders.length) * 100) : 0;
+    tasks.length > 0 ? Math.round((completed / tasks.length) * 100) : 0;
 
   const groupInvitations = myInvitations.filter(
     (i) => (typeof i.groupId === "object" ? i.groupId._id : i.groupId) === id,
@@ -998,9 +998,9 @@ export const GroupDetailPage = () => {
 
   const TABS = [
     {
-      id: "reminders" as const,
-      label: "Reminders",
-      count: reminders.length,
+      id: "tasks" as const,
+      label: "Tasks",
+      count: tasks.length,
       badge: 0,
     },
     {
@@ -1053,7 +1053,7 @@ export const GroupDetailPage = () => {
               leftIcon={<Plus className="w-3.5 h-3.5" />}
               onClick={() => setCreateOpen(true)}
             >
-              Add Reminder
+              Add Task
             </Button>
           </div>
         </div>
@@ -1134,7 +1134,7 @@ export const GroupDetailPage = () => {
             />
           </div>
           <p className="text-xs text-[#94A3B8] mt-2">
-            {completed} of {reminders.length} reminders completed
+            {completed} of {tasks.length} tasks completed
           </p>
         </div>
 
@@ -1172,28 +1172,28 @@ export const GroupDetailPage = () => {
         </div>
 
         {/* Tab content */}
-        {activeTab === "reminders" ? (
-          reminders.length === 0 ? (
+        {activeTab === "tasks" ? (
+          tasks.length === 0 ? (
             <Card>
               <EmptyState
                 icon={<CheckCircle2 className="w-8 h-8" />}
-                title="No reminders yet"
-                description="Add the first reminder for this group."
+                title="No tasks yet"
+                description="Add the first task for this group."
                 action={
                   <Button
                     leftIcon={<Plus className="w-4 h-4" />}
                     size="sm"
                     onClick={() => setCreateOpen(true)}
                   >
-                    Add Reminder
+                    Add Task
                   </Button>
                 }
               />
             </Card>
           ) : (
             <div className="space-y-2.5">
-              {reminders.map((r) => (
-                <ReminderRow key={r._id} reminder={r} />
+              {tasks.map((r) => (
+                <TaskRow key={r._id} task={r} />
               ))}
             </div>
           )
@@ -1212,11 +1212,11 @@ export const GroupDetailPage = () => {
       </div>
 
       {/* Modals */}
-      <CreateReminderModal
+      <CreateTaskModal
         isOpen={createOpen}
         onClose={() => setCreateOpen(false)}
         defaultGroupId={group._id}
-        onCreated={reloadReminders}
+        onCreated={reloadTasks}
       />
 
       {inviteOpen && (

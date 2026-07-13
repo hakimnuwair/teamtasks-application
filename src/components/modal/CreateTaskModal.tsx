@@ -1,9 +1,9 @@
 /**
- * components/modal/CreateReminderModal.tsx
+ * components/modal/CreateTaskModal.tsx
  *
  * Architecture:
- *   CreateReminderModal → useReminders (hook) → reminderStore → reminderService
- *   CreateReminderModal → useGroups    (hook) → groupStore   → groupService
+ *   CreateTaskModal → useTasks (hook) → taskStore → taskService
+ *   CreateTaskModal → useGroups (hook) → groupStore → groupService
  *
  * Groups are loaded via useGroups hook (lazy: skips fetch if store already populated).
  * Member list for "Specific" assignment uses useGroups().getGroupById() — fetched
@@ -17,9 +17,9 @@ import { useState, useEffect } from "react";
 import { SlideModal } from "./SlideModal";
 import { Button, Field, Input, Avatar } from "../ui";
 import { cn } from "../../utils/cn";
-import { useReminders } from "../../hooks/useReminders";
+import { useTasks } from "../../hooks/useTasks";
 import { useGroups } from "../../hooks/useGroups";
-import { parseForm, createReminderSchema } from "../../lib/validations";
+import { parseForm, createTaskSchema } from "../../lib/validations";
 import toast from "react-hot-toast";
 import type { Priority, Recurrence, Group } from "../../types/types";
 import { Users, User } from "lucide-react";
@@ -28,7 +28,7 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   defaultGroupId?: string;
-  /** Called after reminder created — parent can re-fetch its own list */
+  /** Called after task created — parent can re-fetch its own list */
   onCreated?: () => void;
 }
 
@@ -88,7 +88,7 @@ type FormErrors = Partial<Record<keyof typeof INIT | "assignedUsers", string>>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function CreateReminderModal({
+export function CreateTaskModal({
   isOpen,
   onClose,
   defaultGroupId,
@@ -101,7 +101,7 @@ export function CreateReminderModal({
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
 
   // Hook-first: never call services directly from the component
-  const { create } = useReminders();
+  const { create } = useTasks();
   const { groups, getGroupById } = useGroups(); // lazy: fetches if store empty, skips if loaded
 
   // Reset & sync defaultGroupId every time the modal opens.
@@ -159,7 +159,7 @@ export function CreateReminderModal({
     );
 
   const handleSubmit = async () => {
-    const { data, errors: zodErrors } = parseForm(createReminderSchema, {
+    const { data, errors: zodErrors } = parseForm(createTaskSchema, {
       title: form.title,
       description: form.description || undefined,
       dueDateTime: form.dueDateTime,
@@ -196,11 +196,11 @@ export function CreateReminderModal({
             ? selectedUsers
             : undefined,
       });
-      toast.success("Reminder created!");
+      toast.success("Task created!");
       onCreated?.();
       onClose();
     } catch {
-      toast.error("Failed to create reminder");
+      toast.error("Failed to create task");
     } finally {
       setIsSubmitting(false);
     }
@@ -216,7 +216,7 @@ export function CreateReminderModal({
     <SlideModal
       isOpen={isOpen}
       onClose={handleClose}
-      title="New Reminder"
+      title="New Task"
       subtitle="Set a task or deadline for yourself or your team"
     >
       <Field label="Title" error={errors.title} required>
@@ -311,7 +311,7 @@ export function CreateReminderModal({
             "appearance-none cursor-pointer",
           )}
         >
-          <option value="">Personal reminder (no group)</option>
+          <option value="">Personal task (no group)</option>
           {groups.map((g) => (
             <option key={g._id} value={g._id}>
               {g.name}
@@ -471,7 +471,7 @@ export function CreateReminderModal({
           <div className="flex items-start gap-2 p-3 rounded-lg bg-[#EEF2FF] dark:bg-[rgba(99,102,241,0.10)] border border-[#C7D2FE] dark:border-[rgba(99,102,241,0.25)] text-[11px] text-[#4338CA] dark:text-[#A5B4FC]">
             <span className="mt-0.5">ℹ️</span>
             <span className="leading-relaxed">
-              Each person tracks their own completion. Completing a reminder
+              Each person tracks their own completion. Completing a task
               doesn't complete it for others.
             </span>
           </div>
@@ -497,7 +497,7 @@ export function CreateReminderModal({
           onClick={handleSubmit}
           isLoading={isSubmitting}
         >
-          Create Reminder
+          Create Task
         </Button>
       </div>
     </SlideModal>

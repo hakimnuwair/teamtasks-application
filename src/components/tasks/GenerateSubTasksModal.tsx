@@ -1,9 +1,9 @@
 /**
- * components/reminders/GenerateSubtasksModal.tsx
+ * components/tasks/GenerateSubTasksModal.tsx
  *
- * Review step for AI-generated subtasks. Nothing here is persisted — the
- * draft list (useAiSubtaskDraft) is pure client state. Only clicking
- * "Save Subtasks" calls the batch-create endpoint; closing the modal any
+ * Review step for AI-generated sub-tasks. Nothing here is persisted — the
+ * draft list (useAiSubTaskDraft) is pure client state. Only clicking
+ * "Save Sub-tasks" calls the batch-create endpoint; closing the modal any
  * other way discards everything generated/edited so far.
  */
 import { useEffect } from "react";
@@ -11,11 +11,11 @@ import { Sparkles, Trash2, Plus, RefreshCw, AlertTriangle } from "lucide-react";
 import { SlideModal } from "../modal/SlideModal";
 import { Button, Input, Spinner, EmptyState } from "../ui";
 import { cn } from "../../utils/cn";
-import { useAiSubtaskDraft } from "../../hooks/useAiSubtaskDraft";
-import type { Reminder, Priority } from "../../types/types";
+import { useAiSubTaskDraft } from "../../hooks/useAiSubTaskDraft";
+import type { Task, Priority } from "../../types/types";
 
 interface Props {
-  reminder: Reminder;
+  task: Task;
   isOpen: boolean;
   onClose: () => void;
   /** Called after the batch is successfully saved, so the caller can refresh its list. */
@@ -28,8 +28,8 @@ const PRIORITIES: { value: Priority; label: string; dot: string }[] = [
   { value: "LOW", label: "Low", dot: "bg-[#94A3B8]" },
 ];
 
-export function GenerateSubtasksModal({
-  reminder,
+export function GenerateSubTasksModal({
+  task,
   isOpen,
   onClose,
   onConfirmed,
@@ -45,7 +45,7 @@ export function GenerateSubtasksModal({
     addBlankSuggestion,
     confirm,
     reset,
-  } = useAiSubtaskDraft(reminder._id);
+  } = useAiSubTaskDraft(task._id);
 
   // Kick off generation the first time the modal opens; reset the draft when it closes.
   useEffect(() => {
@@ -74,18 +74,18 @@ export function GenerateSubtasksModal({
     <SlideModal
       isOpen={isOpen}
       onClose={onClose}
-      title="Generate Subtasks with AI"
-      subtitle={reminder.title}
+      title="Generate Sub-tasks with AI"
+      subtitle={task.title}
     >
       {isGenerating ? (
         <div className="flex flex-col items-center justify-center gap-3 py-16">
           <Spinner size="lg" />
-          <p className="text-sm text-[#94A3B8]">Generating subtasks...</p>
+          <p className="text-sm text-[#94A3B8]">Generating sub-tasks...</p>
         </div>
       ) : error && suggestions.length === 0 ? (
         <EmptyState
           icon={<AlertTriangle className="w-7 h-7" />}
-          title="Couldn't generate subtasks"
+          title="Couldn't generate sub-tasks"
           description={error}
           action={
             <Button
@@ -125,7 +125,7 @@ export function GenerateSubtasksModal({
                 <div className="flex items-start gap-2">
                   <Input
                     className="flex-1"
-                    placeholder="Subtask title"
+                    placeholder="Sub-task title"
                     value={s.title}
                     onChange={(e) =>
                       updateSuggestion(s.tempId, { title: e.target.value })
@@ -221,7 +221,7 @@ export function GenerateSubtasksModal({
               isLoading={isConfirming}
               disabled={suggestions.length === 0}
             >
-              Save Subtasks
+              Save Sub-tasks
             </Button>
           </div>
         </div>

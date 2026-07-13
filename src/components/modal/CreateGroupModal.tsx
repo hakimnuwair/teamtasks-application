@@ -68,7 +68,7 @@ export function CreateGroupModal({ isOpen, onClose }: Props) {
       isOpen={isOpen}
       onClose={handleClose}
       title="Create Group"
-      subtitle="Collaborate with your team on shared reminders"
+      subtitle="Collaborate with your team on shared tasks"
     >
       {/* Group name */}
       <Field label="Group Name" error={errors.name} required>
@@ -122,7 +122,7 @@ export function CreateGroupModal({ isOpen, onClose }: Props) {
         <span className="text-base leading-none mt-0.5">💡</span>
         <p className="leading-relaxed">
           After creating the group, you can invite members by email and assign
-          reminders to the whole team.
+          tasks to the whole team.
         </p>
       </div>
 

@@ -3,12 +3,12 @@
  */
 import { useState, useCallback } from "react";
 import * as groupService from "../services/group";
-import * as reminderService from "../services/reminder";
+import * as taskService from "../services/task";
 import * as invitationService from "../services/invitation";
 import toast from "react-hot-toast";
 import type {
   Group,
-  Reminder,
+  Task,
   GroupInvitation,
   SentInvite,
 } from "../types/types";
@@ -33,7 +33,7 @@ function mapToSentInvite(inv: GroupInvitation): SentInvite {
 
 export const useGroupDetail = (id: string | undefined) => {
   const [group, setGroup] = useState<Group | null>(null);
-  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [myInvitations, setMyInvitations] = useState<GroupInvitation[]>([]);
   const [sentInvites, setSentInvites] = useState<SentInvite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,7 +46,7 @@ export const useGroupDetail = (id: string | undefined) => {
     try {
       const [g, r, invs, sentInvsRaw] = await Promise.all([
         groupService.getGroupById(id),
-        reminderService.getGroupReminders(id),
+        taskService.getGroupTasks(id),
         invitationService
           .getMyInvitations()
           .catch(() => [] as GroupInvitation[]),
@@ -55,7 +55,7 @@ export const useGroupDetail = (id: string | undefined) => {
           .catch(() => [] as GroupInvitation[]),
       ]);
       setGroup(g);
-      setReminders(Array.isArray(r?.reminders) ? r.reminders : []);
+      setTasks(Array.isArray(r?.tasks) ? r.tasks : []);
       setMyInvitations(Array.isArray(invs) ? invs : []);
       const validSent = Array.isArray(sentInvsRaw) ? sentInvsRaw : [];
       setSentInvites(
@@ -70,11 +70,11 @@ export const useGroupDetail = (id: string | undefined) => {
     }
   }, [id]);
 
-  const reloadReminders = useCallback(async () => {
+  const reloadTasks = useCallback(async () => {
     if (!id) return;
     try {
-      const r = await reminderService.getGroupReminders(id);
-      setReminders(Array.isArray(r?.reminders) ? r.reminders : []);
+      const r = await taskService.getGroupTasks(id);
+      setTasks(Array.isArray(r?.tasks) ? r.tasks : []);
     } catch {
       /* silent */
     }
@@ -160,7 +160,7 @@ export const useGroupDetail = (id: string | undefined) => {
 
   return {
     group,
-    reminders,
+    tasks,
     myInvitations,
     isLoading,
     removingId,
@@ -168,7 +168,7 @@ export const useGroupDetail = (id: string | undefined) => {
     sentInvites,
     setSentInvites,
     load,
-    reloadReminders,
+    reloadTasks,
     reloadGroup,
     reloadSentInvites,
     removeMember,
@@ -176,7 +176,7 @@ export const useGroupDetail = (id: string | undefined) => {
     cancelInvitation,
     sendInvitation,
     setGroup,
-    setReminders,
+    setTasks,
     setMyInvitations,
   };
 };
