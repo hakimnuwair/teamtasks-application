@@ -107,6 +107,10 @@ export const ReminderDetailPage = () => {
   const isAssignedToMe =
     reminder.assignedUsers.length === 0 ||
     reminder.assignedUsers.some((u) => u._id === myId);
+  // Reachable here only for a group member who is neither creator nor
+  // assignee — the backend already restricts view access to creator/assignee/
+  // active group member, so this can't be true for a non-member.
+  const isReadOnly = !isCreator && !isAssignedToMe;
   const overdue = isOverdue(reminder.dueDateTime, reminder.status);
 
   const completedIds = new Set(
@@ -138,6 +142,11 @@ export const ReminderDetailPage = () => {
               {reminder.title}
             </h2>
             <div className="flex items-center gap-2 shrink-0">
+              {isReadOnly && (
+                <Badge variant="default" dot={false}>
+                  Read-only
+                </Badge>
+              )}
               <Button
                 size="sm"
                 leftIcon={

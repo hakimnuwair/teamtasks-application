@@ -71,7 +71,10 @@ export function SubRemindersSection({ reminder }: Props) {
 
   // Sub-reminders are the reminder's execution plan — only the creator plans it
   // (creates/deletes items); assignees execute it (view + complete only).
+  // Any other active group member gets read-only access (view only).
   const isCreator = reminder.createdBy._id === myId;
+  const isAssignedToMe = reminder.assignedUsers.some((u) => u._id === myId);
+  const canComplete = isCreator || isAssignedToMe;
   const parentCompleted = reminder.status === "COMPLETED";
   const doneCount = subReminders.filter((s) => s.status === "COMPLETED").length;
 
@@ -171,13 +174,20 @@ export function SubRemindersSection({ reminder }: Props) {
                   )}
                 >
                   <button
-                    onClick={() => !done && complete(sub._id)}
-                    disabled={done}
+                    onClick={() => !done && canComplete && complete(sub._id)}
+                    disabled={done || !canComplete}
+                    title={
+                      !canComplete && !done
+                        ? "Only the creator or assignees can complete this"
+                        : undefined
+                    }
                     className={cn(
                       "mt-0.5 shrink-0 transition-all duration-[250ms]",
                       done
                         ? "text-emerald-500 cursor-default"
-                        : "text-[#C8CDD8] dark:text-[#30363D] hover:text-indigo-600 dark:hover:text-indigo-400",
+                        : canComplete
+                          ? "text-[#C8CDD8] dark:text-[#30363D] hover:text-indigo-600 dark:hover:text-indigo-400"
+                          : "text-[#C8CDD8] dark:text-[#30363D] opacity-50 cursor-not-allowed",
                     )}
                   >
                     {done ? (
