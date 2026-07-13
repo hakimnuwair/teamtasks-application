@@ -5,12 +5,18 @@
  * POST /reminders/:id/sub-reminders                        → { success, message, ...reminderFields }
  * POST /reminders/:id/sub-reminders/:subId/complete        → { success, message, ...reminderFields }
  * DELETE /reminders/:id/sub-reminders/:subId                → { success, message }
+ * POST /reminders/:id/sub-reminders/generate                → { success, message, suggestions: [] }
+ * POST /reminders/:id/sub-reminders/batch                   → { success, message, subReminders: [] }
  *
  * Sub-reminders are plain Reminder documents with parentId set; groupId/assignedUsers/recurrence
  * are inherited from the parent on the backend and are not accepted here.
  */
 import api from "../config/axios";
-import type { Reminder, CreateSubReminderPayload } from "../types/types";
+import type {
+  Reminder,
+  CreateSubReminderPayload,
+  AiSubtaskSuggestion,
+} from "../types/types";
 
 interface ListResponse {
   success: boolean;
@@ -20,6 +26,11 @@ interface ListResponse {
 interface SingleResponse extends Reminder {
   success: boolean;
   message: string;
+}
+interface SuggestResponse {
+  success: boolean;
+  message: string;
+  suggestions: AiSubtaskSuggestion[];
 }
 
 export const SUB_REMINDER_BLOCK_MESSAGE =
@@ -58,4 +69,24 @@ export const deleteSubReminder = async (
   subId: string,
 ): Promise<void> => {
   await api.delete(`/reminders/${parentId}/sub-reminders/${subId}`);
+};
+
+export const generateSubtasks = async (
+  parentId: string,
+): Promise<AiSubtaskSuggestion[]> => {
+  const { data } = await api.post<SuggestResponse>(
+    `/reminders/${parentId}/sub-reminders/generate`,
+  );
+  return data.suggestions ?? [];
+};
+
+export const createSubRemindersBatch = async (
+  parentId: string,
+  subReminders: CreateSubReminderPayload[],
+): Promise<Reminder[]> => {
+  const { data } = await api.post<ListResponse>(
+    `/reminders/${parentId}/sub-reminders/batch`,
+    { subReminders },
+  );
+  return data.subReminders ?? [];
 };

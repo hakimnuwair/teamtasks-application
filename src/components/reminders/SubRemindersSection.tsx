@@ -5,14 +5,16 @@
  * creator add/delete items while assignees can view and complete them.
  * Rendered inline on the Reminder Details page — not a modal.
  *
- * Add form submits one sub-reminder at a time and appends to the list
- * immediately — this is the same mechanic a future "review AI suggestions"
- * flow will reuse by calling create() once per accepted suggestion, so no
- * batch/draft abstraction is built here.
+ * Manual add form submits one sub-reminder at a time and appends to the list
+ * immediately. "Generate with AI" (GenerateSubtasksModal) is a separate,
+ * ephemeral review flow (useAiSubtaskDraft) — nothing is persisted until the
+ * user confirms there, at which point it calls the batch-create endpoint
+ * once and this component just reloads the list (fetch()).
  */
 import { useState, useEffect } from "react";
-import { Circle, CheckCircle2, Trash2, Clock, Plus } from "lucide-react";
+import { Circle, CheckCircle2, Trash2, Clock, Plus, Sparkles } from "lucide-react";
 import { DeleteConfirmModal } from "../modal/DeleteConfirmationModal";
+import { GenerateSubtasksModal } from "./GenerateSubtasksModal";
 import {
   Button,
   Field,
@@ -62,6 +64,7 @@ export function SubRemindersSection({ reminder }: Props) {
     id: string;
     title: string;
   } | null>(null);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
 
   useEffect(() => {
     fetch();
@@ -134,6 +137,19 @@ export function SubRemindersSection({ reminder }: Props) {
             subReminders.length > 0
               ? `${doneCount} of ${subReminders.length} completed`
               : "Break this reminder down into smaller steps"
+          }
+          action={
+            isCreator &&
+            !parentCompleted && (
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<Sparkles className="w-3.5 h-3.5" />}
+                onClick={() => setAiModalOpen(true)}
+              >
+                Generate with AI
+              </Button>
+            )
           }
         />
 
@@ -335,6 +351,15 @@ export function SubRemindersSection({ reminder }: Props) {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {isCreator && (
+        <GenerateSubtasksModal
+          reminder={reminder}
+          isOpen={aiModalOpen}
+          onClose={() => setAiModalOpen(false)}
+          onConfirmed={fetch}
+        />
+      )}
     </>
   );
 }

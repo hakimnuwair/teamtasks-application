@@ -136,6 +136,22 @@ export interface CreateSubReminderPayload {
   priority?: Priority;
 }
 
+// Returned by POST /reminders/:id/sub-reminders/generate — same fields as
+// CreateSubReminderPayload, but always fully present (the backend fills
+// defaults and re-validates before returning suggestions).
+export interface AiSubtaskSuggestion {
+  title: string;
+  description: string;
+  dueDateTime: string;
+  priority: Priority;
+}
+
+// Client-only shape for the AI-review draft list — adds a local tempId for
+// React keys/edit/remove before anything is persisted. Never sent to the API.
+export interface DraftSubtask extends AiSubtaskSuggestion {
+  tempId: string;
+}
+
 // ─── NOTIFICATION ─────────────────────────────────────────────────────────────
 
 export type NotificationType =
