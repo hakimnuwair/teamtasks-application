@@ -52,6 +52,7 @@ interface AuthState {
   login: (payload: LoginPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
+  forceLogout: () => void;
   setUser: (user: User) => void;
 }
 
@@ -97,11 +98,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await api.post("/auth/logout");
     } finally {
-      tokenManager.clear();
-      disconnectSocket();
-      resetDependentStores();
-      set({ user: null, isAuthenticated: false });
+      get().forceLogout();
     }
+  },
+
+  // Local-only cleanup — same effect as logout() minus the /auth/logout
+  // call, for when the session is already dead server-side (e.g. the axios
+  // interceptor's silent token refresh fails). Exported so the interceptor
+  // can reach it via a dynamic import without a circular dependency
+  // (this file already imports config/axios).
+  forceLogout: () => {
+    tokenManager.clear();
+    disconnectSocket();
+    resetDependentStores();
+    set({ user: null, isAuthenticated: false });
   },
 
   setUser: (user: User) =>

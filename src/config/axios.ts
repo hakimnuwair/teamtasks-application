@@ -100,10 +100,25 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        tokenManager.clear();
+        tokenManager.clear(); // immediate, synchronous — no stale token on the next request
 
-        // Redirect to login — use window.location to avoid circular import with router
-        window.location.href = "/";
+        // Clear auth state instead of hard-redirecting to /login. A hard
+        // window.location redirect fired unconditionally here — including
+        // during the very first "am I logged in?" check on the public
+        // Landing page, which incorrectly bounced first-time visitors to
+        // /login instead of leaving them on "/". Updating the store lets
+        // the existing route guards (HomeRoute, ProtectedRoute) react
+        // correctly for whichever page the user is actually on: an
+        // unauthenticated visitor on "/" stays on the Landing page, while a
+        // session that expires mid-use on a protected page still ends up
+        // redirected to /login, just via React Router instead of a full
+        // page reload.
+        // Dynamic import avoids a circular dependency — authStore imports
+        // this file for its own API calls.
+        import("../store/authStore").then(({ useAuthStore }) => {
+          useAuthStore.getState().forceLogout();
+        });
+
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
