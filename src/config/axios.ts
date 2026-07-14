@@ -103,7 +103,7 @@ api.interceptors.response.use(
         tokenManager.clear();
 
         // Redirect to login — use window.location to avoid circular import with router
-        window.location.href = "/login";
+        window.location.href = "/";
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
