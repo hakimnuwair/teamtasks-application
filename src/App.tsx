@@ -16,6 +16,7 @@ import { Toaster } from "react-hot-toast";
 import { AuthLayout } from "./layouts/AuthLayout";
 import { AppLayout } from "./layouts/AppLayout";
 import { ProtectedRoute } from "./components/common/ProtectedRoute";
+import { HomeRoute } from "./components/common/HomeRoute";
 
 import { LoginPage } from "./pages/auth/Login";
 import { RegisterPage } from "./pages/auth/Register";
@@ -65,7 +66,7 @@ export default function App() {
       <ToastProvider />
 
       <Routes>
-        <Route path="/" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+        <Route path="/" element={<HomeRoute />} />
 
         {/* OAuth callback — no layout wrapper, manages own auth sequence */}
         <Route path="/auth/callback" element={<OAuthCallbackPage />} />
