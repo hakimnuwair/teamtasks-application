@@ -10,14 +10,14 @@
 
 import { Navigate } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
-import { PageSpinner } from "../ui";
+import { AppLoadingScreen } from "./AppLoadingScreen";
 import { ROUTES } from "../../config/routes";
 import { LandingPage } from "../../pages/Landing";
 
 export const HomeRoute = () => {
   const { isAuthenticated, isInitializing } = useAuthStore();
 
-  if (isInitializing && !isAuthenticated) return <PageSpinner />;
+  if (isInitializing && !isAuthenticated) return <AppLoadingScreen />;
 
   if (isAuthenticated) {
     return <Navigate to={ROUTES.DASHBOARD} replace />;
