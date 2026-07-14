@@ -13,7 +13,7 @@
  *
  * Architecture: AppLayout → useNotifications → notificationStore ← notificationService
  */
-import { Outlet, useLocation, NavLink } from "react-router-dom";
+import { Outlet, useLocation, useNavigate, NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
   CheckSquare,
@@ -93,6 +93,15 @@ function Sidebar({ onMobileClose }: { onMobileClose?: () => void }) {
   const { user, logout } = useAuthStore();
   const { sidebarOpen, toggleSidebar } = useUIStore();
   const { unreadCount } = useNotificationStore();
+  const navigate = useNavigate();
+
+  // Explicit logout always lands on the public Landing page ("/"), not
+  // /login — distinct from an expired session, which ProtectedRoute still
+  // sends to /login on its own, unchanged.
+  const handleLogout = async () => {
+    await logout();
+    navigate(ROUTES.HOME, { replace: true });
+  };
 
   return (
     <aside
@@ -206,7 +215,7 @@ function Sidebar({ onMobileClose }: { onMobileClose?: () => void }) {
               </p>
             </div>
             <button
-              onClick={() => logout()}
+              onClick={() => handleLogout()}
               className="p-1.5 rounded-md text-[#94A3B8] hover:text-[#F43F5E] hover:bg-[#FFF1F2] dark:hover:bg-[rgba(244,63,94,0.10)] transition-all"
               title="Logout"
             >
@@ -215,7 +224,7 @@ function Sidebar({ onMobileClose }: { onMobileClose?: () => void }) {
           </div>
         ) : (
           <button
-            onClick={() => logout()}
+            onClick={() => handleLogout()}
             className="w-full flex items-center justify-center p-2 rounded-lg text-[#94A3B8] hover:text-[#F43F5E] hover:bg-[#FFF1F2] dark:hover:bg-[rgba(244,63,94,0.10)] transition-all"
             title="Logout"
           >

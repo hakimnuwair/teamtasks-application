@@ -391,7 +391,7 @@ export const ProfilePage = () => {
     setLoggingOut(true);
     try {
       await logout();
-      navigate(ROUTES.LOGIN, { replace: true });
+      navigate(ROUTES.HOME, { replace: true });
     } finally {
       setLoggingOut(false);
     }
